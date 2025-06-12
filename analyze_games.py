@@ -15,7 +15,7 @@ except FileNotFoundError:
     exit()
 
 # path to the pgn file to analyze
-PGN_FILE_NAME = "roygbiv6_last_3_rapid_games.pgn"
+PGN_FILE_NAME = "roygbiv6_bad_game.pgn"
 
 # define blunder as move that woresens position by a lot (300 centipawns as default)
 BLUNDER_THRESHOLD = 300
@@ -25,7 +25,7 @@ BLUNDER_THRESHOLD = 300
 ENGINE_TIME_PER_MOVE = 0.1
 
 # define player name
-PLAYER_NAME = "roygbiv6"
+PLAYER_NAME = "David78230"
 # ======================
 
 def get_pov_score(score_obj, player_color):
@@ -65,8 +65,14 @@ def analyze_game_for_blunders(game, engine):
         # 2 make the move
         board.push(move)
 
+        # if the move resulted in checkmate, skip the rest of the analysis
+        if board.is_checkmate():
+            continue
+
         # 3 analyze AFTER the move, from perspective of player whose turn it is
         info_after = engine.analyse(board, chess.engine.Limit(time=ENGINE_TIME_PER_MOVE))
+        
+        
         score_after = get_pov_score(info_after["score"], turn_color)
 
         # 4 calculate the drop in evaluation

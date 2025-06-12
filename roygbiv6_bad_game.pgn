@@ -1,0 +1,32 @@
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2025.06.07"]
+[Round "-"]
+[White "David78230"]
+[Black "roygbiv6"]
+[Result "1-0"]
+[CurrentPosition "3rr1k1/pp3pQ1/1q2b1B1/2p1B3/1b6/8/PPP2PPP/3R1RK1 b - - 8 21"]
+[Timezone "UTC"]
+[ECO "C20"]
+[ECOUrl "https://www.chess.com/openings/Kings-Pawn-Opening-Leonardis-Variation-2...Nf6-3.Nf3"]
+[UTCDate "2025.06.07"]
+[UTCTime "16:07:09"]
+[WhiteElo "421"]
+[BlackElo "386"]
+[TimeControl "600"]
+[Termination "David78230 won by checkmate"]
+[StartTime "16:07:09"]
+[EndDate "2025.06.07"]
+[EndTime "16:14:57"]
+[Link "https://www.chess.com/analysis/game/live/139323362436?tab=analysis"]
+[WhiteUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
+[WhiteCountry "52"]
+[WhiteTitle ""]
+[BlackUrl "https://images.chesscomfiles.com/uploads/v1/user/91906036.b68a338f.50x50o.4c82c5367dd9.jpeg"]
+[BlackCountry "2"]
+[BlackTitle ""]
+
+1. e4 e5 2. d3 Nf6 3. Nf3 Nc6 4. Be2 d5 5. Nc3 Bb4 6. O-O O-O 7. Be3 $4 Be6 $9 8.
+d4 $6 Qd6 $2 9. Qd3 $2 dxe4 $9 10. Nxe4 Nxe4 11. Qxe4 exd4 12. Nxd4 Nxd4 13. Bxd4 c5
+14. Be5 Qb6 $6 15. Bd3 Rfe8 $4 16. Qxh7+ $1 Kf8 17. Qxg7+ Ke7 18. Qf6+ Kf8 19. Bg6 $6
+Rad8 20. Rad1 Kg8 $2 21. Qg7# $1 1-0
