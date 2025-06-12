@@ -13,13 +13,13 @@ import io
 # ======================
 # Allows user to set desired game type(i.e. rapid, blitz, bullet, Daily, or all)
 # set to "all" by default
-DESIRED_GAME_TYPE = "blitz"
+DESIRED_GAME_TYPE = "rapid"
 
 # filter for rated vs unrated games, true means only rated games
 RATED_ONLY = True
 
 # allow user to set the number of games to extract, default is 50
-GAMES_NEEDED = 10
+GAMES_NEEDED = 3
 # ======================
 
 # ======================
