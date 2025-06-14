@@ -18,14 +18,14 @@ except FileNotFoundError:
 PGN_FILE_NAME = "roygbiv6_bad_game.pgn"
 
 # define blunder as move that woresens position by a lot (300 centipawns as default)
-BLUNDER_THRESHOLD = 300
+BLUNDER_THRESHOLD = 250
 
 # define how long the engine should think per move (in seconds)
 # 0.1 is fast, 1.0 is accurate.
-ENGINE_TIME_PER_MOVE = 0.1
+ENGINE_TIME_PER_MOVE = 0.5
 
 # define player name
-PLAYER_NAME = "David78230"
+PLAYER_NAME = "roygbiv6"
 # ======================
 
 def get_pov_score(score_obj, player_color):
