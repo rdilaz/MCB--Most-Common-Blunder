@@ -1,138 +1,115 @@
-# library for making HTTP requests
 import requests
-
-# library for parsing JSON data from the API
 import json
+import argparse
 
-# library to help parse PGN data
-import chess.pgn
-import io
+def fetch_user_games(username, num_games, selected_types, rated_filter):
+    """
+    Fetches a user's games from Chess.com API based on multiple criteria.
+    Args:
+        username (str): The username of the player to fetch games for.
+        num_games (int): The number of games to fetch.
+        selected_types (list): A list of game types to fetch.
+        rated_filter (str): The filter to apply to the games.
+    Returns:
+        str: The name of the created PGN file, or None if an error occurs.
+    """
+    main_url = f"https://api.chess.com/pub/player/{username}/games/archives"
+    headers = {"User-Agent": "MCB/1.0 (https://github.com/rdilaz/MCB--Most-Common-Blunder)"}
 
-# ======================
-# User Configuration: 
-# ======================
-# Allows user to set desired game type(i.e. rapid, blitz, bullet, Daily, or all)
-# set to "all" by default
-DESIRED_GAME_TYPE = "rapid"
+    # Improved print statement for clarity
+    type_str = ", ".join(selected_types) if selected_types else "all"
+    print(f"Config: Fetching last {num_games} games for '{username}' | Types: '{type_str}' | Filter: '{rated_filter}'")
 
-# filter for rated vs unrated games, true means only rated games
-RATED_ONLY = True
+    try:
+        response = requests.get(main_url, headers=headers)
+        response.raise_for_status()
+        archives_data = response.json()
+        archive_urls = archives_data.get("archives", [])
 
-# allow user to set the number of games to extract, default is 50
-GAMES_NEEDED = 3
-# ======================
-
-# ======================
-# Set URL based on username and headers
-# ======================
-# Define Chess.com username 
-username = "roygbiv6"
-# construct request URL, returns a list of monthly archive URLs for the user's games
-# main_url is the URL that has the list of monthly archive URLs
-main_url = f"https://api.chess.com/pub/player/{username}/games/archives"
-# headers tell server who is making the request
-headers = {"User-Agent": "MCB/1.0 (Most Common Blunder Project: Please contact at dilazzaroryo@gmail.com)"}
-
-# send request to the API, using try except to handle errors
-try:
-    # request.get() sends get request to specified URL,header is passed here 
-    response = requests.get(main_url, headers=headers)
-
-    # check if request was successful (e.g. 200 OK status code)
-    # will raise an exception for bad status codes so we can handle them
-    response.raise_for_status()
-
-    # API will return JSON (JavaScript Object Notation).
-    # .json() will parse the text into a Python dictionary or list.
-    archives_data = response.json()
-
-    # the data for this endpoint is a dictionary with a single key, "archives"
-    # the value is a list of URLS. Lets get that list.
-    archive_urls = archives_data.get("archives", [])
-
-    # # print the list of archive URLs to the console.
-    # print(f"Found {len(archive_urls)} monthly archive URLs for '{username}':")
-
-    # ========================================================================
-    # logic for extracting games from archives. 
-    # MCB will only anlayzie the last 50 games (for now) so 
-    # we will go from most recent month and fill until 50 games are extracted.
-    #=========================================================================
-
-    # list for holding PGN data
-    pgns = []
-    print(f"Config: Extracting last {GAMES_NEEDED} most recent games | Type: '{DESIRED_GAME_TYPE}' | Rated Only: {RATED_ONLY}")
-
-    # starting from the most recent month, iterate over the archive URLs in reverse order (since they are posted earliest first).
-    for archive_url in reversed(archive_urls):
-        # once 50 games are extracted, break out of the for loop
-        if len(pgns) >= GAMES_NEEDED:
-            break
-
-        # print the current archive URL
-        print(f"Extracting games from monthly archive URL: {archive_url}")
-
-        # make new request to archive URL
-        monthly_response = requests.get(archive_url, headers=headers)
-        monthly_response.raise_for_status()
-
-        # new endpoint returns dictionary with "games" key, with a list of game objects.
-        monthly_games_data = monthly_response.json()
-        games_in_month = monthly_games_data.get("games", [])
-
-
-        # games are also oldest to newest, so reverse and get most recent ones first
-        for game_data in reversed(games_in_month):
-            # if we have already extracted the desired number of games, break out of the loop
-            if len(pgns) >= GAMES_NEEDED:
+        pgns = []
+        for archive_url in reversed(archive_urls):
+            if len(pgns) >= num_games:
                 break
 
-            pgn_string = game_data.get("pgn")
-            if not pgn_string:
-                continue # skip this game if no PGN data is found
+            monthly_response = requests.get(archive_url, headers=headers)
+            monthly_response.raise_for_status()
+            monthly_games_data = monthly_response.json()
+            games_in_month = monthly_games_data.get("games", [])
 
-            # filtering logic using io.StringIO to parse PGN data
-            pgn_io = io.StringIO(pgn_string)
-            game = chess.pgn.read_game(pgn_io)
+            for game_data in reversed(games_in_month):
+                if len(pgns) >= num_games:
+                    break
 
-            # check if game is rated
-            if RATED_ONLY and ("WhiteElo" not in game.headers or "BlackElo" not in game.headers):
-                continue # skip if game is not rated
+                # Filter 1: Game Type
+                current_game_type = game_data.get("time_class")
+                # If the user selected specific types AND the current game's type isn't in their list, skip.
+                if selected_types and current_game_type not in selected_types:
+                    continue
 
-            # check time control
-            time_control_str = game.headers.get("TimeControl", "0")
-            # base time is number before + sign
-            base_time_sec = int(time_control_str.split("+")[0])
+                # Filter 2: Rated Status
+                is_rated_game = game_data.get("rated", False)
+                if rated_filter == "rated" and not is_rated_game:
+                    continue
+                if rated_filter == "unrated" and is_rated_game:
+                    continue
+                
+                pgn_string = game_data.get("pgn")
+                if pgn_string:
+                    pgns.append(pgn_string)
 
-            game_type = ""
-            if base_time_sec < 180: # less than 3 minutes
-                game_type = "bullet"
-            elif base_time_sec < 600: # less than 10 minutes
-                game_type = "blitz"
-            else: # 10+ minutes
-                game_type = "rapid"
+        print(f"\nSuccessfully fetched {len(pgns)} games.")
 
-            # if user specified a game type and it doesn't match, skip this game
-            if DESIRED_GAME_TYPE != "all" and game_type != DESIRED_GAME_TYPE:
-                continue # skip if game type doesn't match
+        # --- IMPROVED FILENAME LOGIC ---
+        type_for_filename = type_str.replace(", ", "-") if selected_types else "all"
+        file_name = f"{username}_last_{len(pgns)}_{type_for_filename}_{rated_filter}.pgn"
+        
+        with open(file_name, "w", encoding="utf-8") as f:
+            f.write("\n\n".join(pgns))
 
-            # if game passed all filters, add to list
-            pgns.append(pgn_string)
-            print(f" -> Game added. Type: {game_type} | Total collected: {len(pgns)}")
+        print(f"PGN file saved as '{file_name}'")
+        return file_name
+    
+    except requests.exceptions.RequestException as e:
+        print(f"API error occurred: {e}")
+        return None
 
-    print(f"\nFinished. Total games extracted: {len(pgns)}")
+# argparse for debugging
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Fetch recent games for a Chess.com user.",
+        formatter_class=argparse.RawTextHelpFormatter # Improves help message formatting
+    )
 
-    # save the collected PGNS to a single file.
-    # w mode will write to filem overwriting if it exists.
-    # each pgn is seperated by 2 newlines for readability
-    file_name = f"{username}_last_{len(pgns)}_{DESIRED_GAME_TYPE}_games.pgn"
-    with open(file_name, "w", encoding='utf-8') as f:
-        # join method combines list of strings
-        f.write("\n\n".join(pgns))
+    parser.add_argument("--username", type=str, required=True, help="Chess.com username.")
+    parser.add_argument("--num_games", type=int, default=50, help="Number of games to fetch. Default is 50.")
+    parser.add_argument("--filter", type=str, default="rated", choices=["rated", "unrated", "both"],
+                        help="Filter by rated status: 'rated' (default), 'unrated', or 'both'.")
+    
+    # NEW: Replaced --game_type with individual flags for each category
+    parser.add_argument("--rapid", action="store_true", help="Include rapid games.")
+    parser.add_argument("--blitz", action="store_true", help="Include blitz games.")
+    parser.add_argument("--bullet", action="store_true", help="Include bullet games.")
+    parser.add_argument("--daily", action="store_true", help="Include daily games.")
+    
+    args = parser.parse_args()
 
-    print(f"PGNS saved to: {file_name}")
-       
+    # Build a list of the game types the user selected.
+    selected_types = []
+    if args.rapid:
+        selected_types.append("rapid")
+    if args.blitz:
+        selected_types.append("blitz")
+    if args.bullet:
+        selected_types.append("bullet")
+    if args.daily:
+        selected_types.append("daily")
+    
+    # If the user provides no flags, the list remains empty, which we'll treat as "all".
 
-except requests.exceptions.RequestException as e:
-    print(f"An error occured: {e}")
-    print(f"Error details: {e.response.text}")
+    print("\n--- Running in standalone test mode ---")
+    fetch_user_games(
+        username=args.username,
+        num_games=args.num_games,
+        selected_types=selected_types, # Pass the list to our function
+        rated_filter=args.filter
+    )
