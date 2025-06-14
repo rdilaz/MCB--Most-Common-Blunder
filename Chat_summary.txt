@@ -1,0 +1,61 @@
+Project Summary: Most Common Blunder (MCB) Application
+1. Project Goal & Philosophy:
+The primary goal is to build a full-stack web application called Most Common Blunder (MCB). The app will fetch a user's recent chess games from Chess.com, use the Stockfish engine to analyze them, and generate a report detailing their most common blunders to help them improve. The development philosophy is strictly incremental and educational. Every component is to be built with a full understanding of its function, prioritizing learning over speed.
+
+2. Current Status:
+The project is at the end of Phase 2 and the beginning of Phase 3 of the original roadmap.
+
+Backend: The core Python logic for fetching and analyzing games is complete and robust.
+Frontend: A basic static HTML/CSS frontend has been created, and foundational JavaScript for DOM manipulation has been implemented.
+Next Immediate Step: Integrate the Python logic into a Flask web server to create an API endpoint that the frontend can communicate with.
+Detailed Development History & Key Decisions
+Phase 1: Backend Foundation (Completed)
+This phase focused on creating the core Python logic locally.
+
+A. Environment Setup:
+
+Successfully resolved an issue with multiple Python versions (2.7 and 3.12) by editing the Windows System PATH Environment Variable to prioritize Python 3. This was necessary because a bundled version of Python 2 from the MinGW toolset was taking precedence.
+The final, verified environment uses Python 3.13.4.
+B. get_games.py - Game Fetching Script:
+This script fetches game data from the Chess.com API. It evolved significantly:
+
+Initial Logic: Started by fetching a list of monthly archive URLs for a given username.
+Data Filtering (Crucial Iterations):
+Game Type: The initial goal was a simple filter for "rapid," "blitz," etc. This evolved into a highly flexible system where the user can select multiple game types as command-line flags (e.g., --rapid --blitz). If no flags are provided, it defaults to fetching all types.
+Rated Status: The requirement evolved from a simple "rated only" toggle to a three-way choice: --filter rated (default), --filter unrated, or --filter both.
+Data Source Insight: A key discovery was that the API's JSON response contains rich metadata not present in the PGN string itself. The logic was refactored to use the direct time_class and rated keys from the JSON for filtering, which is much more efficient and accurate than parsing the PGN for this information.
+Final get_games.py State: It is now a finalized, standalone command-line tool using Python's argparse library. It can be called with multiple arguments to fetch a specific number of games for any user, with precise filtering for game types and rated status.
+C. analyze_games.py - Blunder Analysis Script:
+This script uses the python-chess library and the Stockfish engine to find blunders in a PGN file.
+
+Setup: The Stockfish engine was downloaded and placed in a stockfish/ subfolder within the project directory.
+Core Logic: The script iterates through a game's moves, gets a centipawn evaluation from the engine before and after each move, and flags a move as a blunder if the evaluation drops by a specified threshold (e.g., 300 centipawns).
+Bug Fixing & Refinement (Crucial Iterations):
+Fixed a bug where the script was comparing scores from different players' perspectives. The logic was corrected to always evaluate the position from the perspective of the player who is about to move.
+Fixed a major bug related to checkmates, where the script would return astronomical evaluation drops.
+Identified and fixed a critical edge case where delivering a winning checkmate was incorrectly flagged as a blunder. The final, robust solution is to check if board.is_checkmate(): and simply skip the move if true.
+Final analyze_games.py State: The logic has been refactored into a reusable function, find_blunders(), and the script is now a standalone command-line tool using argparse for independent testing.
+Phase 2: Frontend Foundation (Completed)
+This phase focused on creating the static user interface.
+
+HTML/CSS: Created index.html and styles.css. The page has a basic structure with a header, a main content area, and placeholder "blunder cards."
+Custom Fonts: Implemented two custom fonts from Google Fonts: "Playfair Display" for the main title and "Sofia Sans" for the body text, using the recommended <link> method in the HTML <head>.
+JavaScript & DOM:
+Created main.js.
+Learned the difference between a static file server (VS Code's Live Server) and a dynamic application server (Flask).
+Successfully added a "Toggle Blunders" button and used document.getElementById and addEventListener to make it show/hide the blunder cards by changing their CSS display property.
+Workflow Decision: Made a conscious decision to pursue a "Functionality-First" approach. The priority is to connect the backend logic to the frontend and display real data, even if it looks basic. Visual polish and advanced CSS will come after the core functionality is proven to work end-to-end.
+Phase 3: Backend Web Server (In Progress)
+This phase focuses on exposing the Python logic to the web.
+
+Flask Setup: Installed Flask and created a simple app.py that successfully serves a "Hello, World!" message at http://127.0.0.1:5000.
+Refactoring for Integration: The get_games.py and analyze_games.py scripts have been fully refactored into modular, importable functions, ready to be used by the Flask app.
+Next Immediate Step:
+
+The very next task is to build out app.py. This involves:
+
+Importing the fetch_user_games and find_blunders functions.
+Creating a dynamic Flask route, such as /api/analyze/<username>.
+When this route is called, the Flask app will execute the two imported functions in sequence.
+The final list of blunder dictionaries will be returned to the caller in JSON format using Flask's jsonify utility.
+After that, the main.js on the frontend will be updated to fetch data from this new API endpoint.

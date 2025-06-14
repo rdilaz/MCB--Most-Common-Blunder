@@ -24,62 +24,112 @@ PIECE_VALUES = {
 # Helper Functions
 # ---------------------------------------
 
-# # Calculate the Static Exchange Evaluation (SEE) for a move.
-# # Determines material gain/loss from a series of captures on the mov's target square.
-# # A positive score is favorable for the moving side. 
-# def see(board: chess.Board, move: chess.Move) -> int:
-#     if not move.is_capture(): return 0
+# Calculate the Static Exchange Evaluation (SEE) for a move.
+# Determines material gain/loss from a series of captures on the mov's target square.
+# A positive score is favorable for the moving side. 
+def see(board: chess.Board, move: chess.Move) -> int:
+    if not board.is_capture(move):
+        return 0
 
-#     gain = [0]
-#     from_sq = move.from_square
-#     to_sq = move.to_square
+    to_sq = move.to_square
+    from_sq = move.from_square
 
-#     # Initial Capture
-#     captured_piece_type = board.piece_type_at(to_sq)
-#     if captured_piece_type is None:
-#         return 0
-#     gain.append(PIECE_VALUES.get(captured_piece_type, 0))
+    # 1. Create a list of piece values involved in the exchange.
+    # The first value is the piece being captured.
+    captured_piece = board.piece_at(to_sq)
+    if captured_piece is None: # En-passant
+        captured_piece_type = chess.PAWN
+    else:
+        captured_piece_type = captured_piece.piece_type
+
+    # The 'gains' list will store the value of pieces in the exchange sequence.
+    gains = [PIECE_VALUES.get(captured_piece_type, 0)]
+
+    # 2. Simulate the captures on a temporary board.
+    temp_board = board.copy(stack=False)
+    temp_board.push(move)
+    side_to_move = temp_board.turn
     
-#     side_to_move = board.turn
-#     attack_piece_type = board.piece_type_at(from_sq)
+    # The piece that made the last move is the current attacker.
+    last_attacker_piece = temp_board.piece_at(to_sq)
 
-#     # create copy of board to simulate exchange
-#     temp_board = board.copy(stack=False)
-#     temp_board.push(move)
-#     side_to_move = not temp_board.turn
+    while last_attacker_piece:
+        # Find the least valuable attacker for the other side.
+        attackers = temp_board.attackers(side_to_move, to_sq)
+        if not attackers:
+            break
 
-#     while True:
-#         attackers = temp_board.attackers(side_to_move, to_sq)
-#         if not attackers:
-#             break
-#         # find least valuable attacker
-#         lva_square = -1
-#         min_piece_value = float('inf')
-#         for attacker_sq in attackers:
-#             piece_val = PIECE_VALUES.get(temp_board.piece_type_at(attacker_sq), 0)
-#             if piece_val < min_piece_value:
-#                 min_piece_value = piece_val
-#                 lva_square = attacker_sq
+        lva_square = -1
+        min_piece_val = float('inf')
+        lva_piece = None
+        for attacker_sq in attackers:
+            piece = temp_board.piece_at(attacker_sq)
+            piece_val = PIECE_VALUES.get(piece.piece_type, 0)
+            if piece_val < min_piece_val:
+                min_piece_val = piece_val
+                lva_square = attacker_sq
+                lva_piece = piece
 
-#         if lva_square == -1:
-#             break
+        if lva_square == -1:
+            break
+
+        # The value of the piece just captured is added to the gains list.
+        gains.append(PIECE_VALUES.get(last_attacker_piece.piece_type, 0))
         
-#         gain.append(PIECE_VALUES.get(attack_piece_type, 0) - gain[-1])
+        # Simulate the recapture.
+        temp_board.remove_piece_at(lva_square)
+        temp_board.set_piece_at(to_sq, lva_piece)
+        last_attacker_piece = lva_piece
+        side_to_move = not side_to_move
+    
+    # 3. Negamax the gains list to find the final score.
+    # A player will not continue an exchange if it results in a loss for them.
+    score = 0
+    # The side to move can choose to stop the exchange. We start with the second to last capture.
+    for i in range(len(gains) - 1, 0, -1):
+        score = max(0, gains[i] - score)
+    
+    # The first capture is forced, so we don't cap it at 0.
+    return gains[0] - score
 
-#         # Simulate the capture by the least valuable attacker
-#         attack_piece_type = temp_board.piece_type_at(lva_square)
-#         temp_board.remove_piece_at(lva_square)
-#         temp_board.set_piece_at(to_sq, chess.Piece(attack_piece_type, side_to_move))
-#         side_to_move = not side_to_move
+# Check if a move is a losing exchange or hangs a piece.
+def check_for_material_loss(board_before, move_played, info_after, board_after, turn_color):
+    move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
+    # Case 1: Move is a capture
+    if board_before.is_capture(move_played):
+        see_value = see(board_before, move_played)
+        if see_value < -100: # loses at least a pawn worth of material
+            return {"category": "Losing Exchange", "move_number": move_num, "description": "You entered into an unfavorable material exchange."}
+    
+    # Case 2: Move is not a capture, but hangs a piece
+    else:
+        # Check if the opponent's best response is to capture a piece with a favorable exchange.
+        if 'pv' in info_after and info_after['pv']:
+            opponent_best_move = info_after['pv'][0]
+            if board_after.is_capture(opponent_best_move):
+                see_value = see(board_after, opponent_best_move)
+                if see_value > 100: # opponent can capture at least a pawn worth of material
+                    captured_piece = board_after.piece_at(opponent_best_move.to_square)
+                    if captured_piece:
+                        piece_name = chess.piece_name(captured_piece.piece_type).capitalize()
+                    else: # En-passant case
+                        piece_name = "Pawn"
+                    
+                    description = f"Your move left your {piece_name} undefended, allowing the opponent to win material."
+                    return {"category": "Hanging a Piece", "move_number": move_num, "description": description}
 
-#     # Negamax the gain list to find the final score
-#     while len(gain) > 1:
-#         gain[-2] = max(-gain[-1], gain[-2])
-#         gain.pop()
+    # If no material loss is found, return None
+    return None
 
-#     return gain[0]
-
-
+# Check if player missed oppurtunity to gain material.
+def check_for_missed_material_gain(board_before, best_move_info, board_after, turn_color):
+    move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
+    best_move = best_move_info['pv'][0]
+    if board_before.is_capture(best_move):
+        see_value = see(board_before, best_move)
+        if see_value > 100: # opponent can capture at least a pawn worth of material
+            return {"category": "Missed Material Gain", "move_number": move_num, "description": f"You missed a chance to win material with {best_move.uci()}."}
+    return None
 
 # Converts a score object (from Stockfish) to an integer used for calculations.
 # This number is always from the perspective of the target player.
@@ -118,50 +168,53 @@ def categorize_blunder(engine, board_before, move_played, best_move_info, win_pr
     # Get color of target player
     turn_color = board_before.turn
 
-    # Check 1: "Missed Checkmate"
-    # Check best move, if it was checkmate 
-    if best_move_info["score"].is_mate() and best_move_info["score"].pov(turn_color).mate() > 0:
-        # Return info about blunder
-        temp_board = board_before.copy(); temp_board.push(move_played)
-        move_num = temp_board.fullmove_number if turn_color == chess.WHITE else f"{temp_board.fullmove_number-1}..."
-        return {"category": "Missed Checkmate", "move_number": move_num, "description": f"You missed a checkmate in {best_move_info['score'].pov(turn_color).mate()} moves."}
-
-    # Check 2: "Allowed Checkmate"
     # Create temp board se see position after player move, then analyze that position.
     board_after = board_before.copy(); board_after.push(move_played)
     info_after = engine.analyse(board_after, chess.engine.Limit(time=think_time))
 
-    # if the move allowed opponent to force checkmate, return info about blunder
+    # --- Absolute Blunders (Mates) ---
+    # These are blunders regardless of win probability drop.
+    # Check 1: "Missed Checkmate"
+    if best_move_info["score"].is_mate() and best_move_info["score"].pov(turn_color).mate() > 0:
+        move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
+        return {"category": "Missed Checkmate", "move_number": move_num, "description": f"You missed a checkmate in {best_move_info['score'].pov(turn_color).mate()} moves."}
+
+    # Check 2: "Allowed Checkmate"
     if info_after["score"].is_mate() and info_after["score"].pov(turn_color).mate() < 0:
         move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
         return {"category": "Allowed Checkmate", "move_number": move_num, "description": f"Your move allows the opponent to force checkmate in {abs(info_after['score'].pov(turn_color).mate())} moves."}
 
-    # Bottom Check: "Mistake"
-    # If no other more severe blunder is found above, check if the move is at least a mistake.
-    # get win prob of best move
+    # --- Win Probability-Based Blunders ---
+    # Now, check if the move qualifies as a blunder by the threshold.
     cp_best_move = get_pov_score(best_move_info["score"], turn_color) 
     win_prob_best_move = get_win_probability(cp_best_move)  
-     # get win prob of move after played move
     cp_after_player_move = get_pov_score(info_after["score"], turn_color)
     win_prob_after_player_move = get_win_probability(cp_after_player_move)
-
-    # Calculate win probability diff
     win_prob_drop = win_prob_best_move - win_prob_after_player_move
 
-    # If win prob drop is greater than threshold, return info about blunder
-    if win_prob_drop >= win_prob_threshold:
-        move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
-        return {
-            "category": "Mistake",
-            "move_number": move_num,
-            "description": f"This move dropped your win probability by {round(win_prob_drop, 1)}%.",
-            "win_prob_drop": round(win_prob_drop, 2),
-            "eval_after": cp_after_player_move,
-            "eval_before": cp_best_move, 
-        }
+    # If win prob drop is not significant, it's not a blunder.
+    if win_prob_drop < win_prob_threshold:
+        return None
+        
+    # --- If it is a blunder, categorize it down the hierarchy ---
+    # Check 3: "Losing Exchange" or "Hanging a Piece"
+    if (category_info := check_for_material_loss(board_before, move_played, info_after, board_after, turn_color)):
+        return category_info
     
-    # If no blunder is found, return None
-    return None
+    # Check 4: "Missed Material Gain"
+    if (category_info := check_for_missed_material_gain(board_before, best_move_info, board_after, turn_color)):
+        return category_info
+
+    # Bottom Check: "Mistake" (Fallback category)
+    move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
+    return {
+        "category": "Mistake",
+        "move_number": move_num,
+        "description": f"This move dropped your win probability by {round(win_prob_drop, 1)}%.",
+        "win_prob_drop": round(win_prob_drop, 2),
+        "eval_after": cp_after_player_move,
+        "eval_before": cp_best_move, 
+    }
 
 # Analyzes each move in a game.
 # Calls categorize_blunder for each move.
