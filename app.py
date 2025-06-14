@@ -9,9 +9,9 @@ CORS(app)
 
 #--- Configuration ---
 STOCKFISH_PATH = os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe")
-GAMES_TO_FETCH = 50
-BLUNDER_THRESHOLD = 300
-ENGINE_THINK_TIME = 0.1
+GAMES_TO_FETCH = 1
+BLUNDER_THRESHOLD = 10
+ENGINE_THINK_TIME = 1.0
 #--- End Configuration ---
 
 @app.route("/api/analyze/<string:username>")

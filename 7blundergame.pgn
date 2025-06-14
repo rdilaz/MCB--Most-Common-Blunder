@@ -1,0 +1,50 @@
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2025.05.25"]
+[Round "-"]
+[White "tonyledao"]
+[Black "roygbiv6"]
+[Result "1-0"]
+[CurrentPosition "R7/8/8/8/8/8/2K5/k7 b - - 73 130"]
+[Timezone "UTC"]
+[ECO "C67"]
+[ECOUrl "https://www.chess.com/openings/Ruy-Lopez-Opening-Berlin-Rio-Gambit-Accepted-5.Re1"]
+[UTCDate "2025.05.25"]
+[UTCTime "00:42:37"]
+[WhiteElo "309"]
+[BlackElo "280"]
+[TimeControl "600"]
+[Termination "tonyledao won by checkmate"]
+[StartTime "00:42:37"]
+[EndDate "2025.05.25"]
+[EndTime "00:56:17"]
+[Link "https://www.chess.com/analysis/library/6ZnQy2R7C"]
+[WhiteUrl "https://www.chess.com/bundles/web/images/noavatar_l.84a92436.gif"]
+[WhiteCountry "2"]
+[WhiteTitle ""]
+[BlackUrl "https://images.chesscomfiles.com/uploads/v1/user/91906036.b68a338f.50x50o.4c82c5367dd9.jpeg"]
+[BlackCountry "2"]
+[BlackTitle ""]
+
+1. e4 e5 2. Nf3 Nc6 3. Bb5 Nf6 4. O-O Nxe4 5. Re1 d5 $2 6. c4 $9 Bg4 $6 7. cxd5 $9
+Qxd5 8. Nc3 $6 Bc5 $4 9. Nxd5 $1 O-O-O 10. Bxc6 bxc6 11. Nc3 $6 Bxf2+ 12. Kf1 Bxe1
+13. Qxe1 f5 14. Nxe4 fxe4 15. Qxe4 Be6 16. Nxe5 Bd5 17. Qg4+ Kb8 18. Nd7+ Kc8 $2
+19. Nb6+ $9 Kb7 20. Nxd5 cxd5 21. Qb4+ Kc8 22. d4 Rhf8+ 23. Kg1 c6 24. Be3 Rf7
+25. Qc5 Kc7 $6 26. Rf1 Rdf8 $6 27. Qxf8 $6 Rxf8 28. Rxf8 h6 29. Rf7+ Kd6 30. Rxg7
+Ke6 31. Bxh6 Kf5 32. Rxa7 Ke6 33. Ra6 Kd6 34. g4 Kc7 35. Be3 Kb7 36. Rxc6 Kxc6
+37. g5 Kd7 38. g6 Ke8 $6 39. a4 Ke7 40. a5 Kf6 41. a6 Kxg6 42. a7 Kf6 43. a8=R $9
+Ke6 44. h4 Kf5 $6 45. h5 Ke4 46. h6 Kxe3 47. Ra4 Ke4 48. h7 Kd3 49. h8=R Kc2 50.
+Rb8 Kd3 51. b4 Kxd4 52. b5+ Kc5 53. b6 Kb5 $6 54. Ra7 Kc6 55. b7 d4 56. Re8 Kb6
+57. b8=Q+ Kc6 58. Re4 $9 d3 59. Re3 d2 60. Rc3+ Kd5 61. Qd8+ Ke4 62. Qd3+ Kf4 63.
+Ra4+ Ke5 64. Re4+ Kf5 65. Re3+ Kf4 66. Re2 d1=Q+ 67. Qxd1 Kf5 68. Qd5+ Kf4 69.
+Ra3 Kg4 70. Re8 Kf4 71. Qh1 $9 Kf5 72. Qh8 Kg6 73. Qa1 Kf7 74. Raa8 Kg6 75. Rh8
+Kf7 76. Kh1 Kg6 77. Rag8+ Kf7 78. Rh2 Kxg8 79. Ra2 Kf7 80. Qh8 Kg6 81. Qh2 Kf5
+82. Ra8 Ke6 83. Qb8 Kd7 84. Ra1 Kc6 85. Qh8 Kb5 86. Qb2+ Kc4 87. Qh8 Kb3 88. Ra8
+Kc2 89. Qa1 Kd2 90. Qg1 Ke2 91. Qg8 Kf1 $6 92. Qa2 Ke1 93. Qe2+ $9 Kxe2 94. Ra2+
+Kd3 95. Kg1 Kc3 96. Rh2 Kb3 97. Kf1 Kc4 98. Kf2 Kd3 $4 99. Kg3 $9 Ke3 100. Rf2 Ke4
+101. Re2+ Kd3 102. Kf3 Kc3 103. Re3+ Kd2 $4 104. Kf2 Kc2 105. Re8 $9 Kd3 106. Kf3
+Kd4 107. Kf4 Kd3 108. Re4 Kc3 109. Ke3 Kb3 $4 110. Kd3 Kb2 111. Ra4 Kb3 112. Rc4
+Kb2 113. Kd2 Kb3 114. Rc8 Kb4 115. Kd3 Kb5 116. Kd4 Kb6 117. Rc1 Kb5 118. Rc4
+Kb6 119. Kd5 $1 Kb5 120. Kd4 Kb6 121. Rb4+ $9 Ka5 $4 122. Kc4 $1 Ka6 123. Rb1 Ka5 124.
+Kc5 Ka4 125. Kc4 Ka3 126. Kc3 Ka2 $6 127. Kc2 $9 Ka3 128. Rb3+ Ka2 $6 129. Rb8 $9
+Ka1 $6 130. Ra8# 1-0
