@@ -10,273 +10,263 @@ STOCKFISH_PATH_DEFAULT = os.path.join(os.path.dirname(__file__), "stockfish", "s
 WIN_PROB_THRESHOLD_DEFAULT = 20.0
 # default engine think time per move in seconds.
 ENGINE_THINK_TIME_DEFAULT = 0.1
-# Standard Piece Value in Centipawns
+
 PIECE_VALUES = {
-
     chess.PAWN: 100,
-    chess.KNIGHT: 320,
-    chess.BISHOP: 330,
+    chess.KNIGHT: 300,
+    chess.BISHOP: 320,
     chess.ROOK: 500,
-    chess.QUEEN: 950,
-    chess.KING: 200000
+    chess.QUEEN: 900,
+    chess.KING: 10000
 }
-# ---------------------------------------
-# Helper Functions
-# ---------------------------------------
+PIECE_NAMES = {
+    chess.PAWN: "Pawn",
+    chess.KNIGHT: "Knight",
+    chess.BISHOP: "Bishop",
+    chess.ROOK: "Rook",
+    chess.QUEEN: "Queen",
+    chess.KING: "King"
+}
 
-# Calculate the Static Exchange Evaluation (SEE) for a move.
-# Determines material gain/loss from a series of captures on the mov's target square.
-# A positive score is favorable for the moving side. 
-def see(board: chess.Board, move: chess.Move) -> int:
+
+def see(board, move):
+    """
+    A simpler, standard implementation of Static Exchange Evaluation.
+    A positive score is favorable for the side making the move.
+    """
     if not board.is_capture(move):
         return 0
-
-    to_sq = move.to_square
-    from_sq = move.from_square
-
-    # 1. Create a list of piece values involved in the exchange.
-    # The first value is the piece being captured.
-    captured_piece = board.piece_at(to_sq)
-    if captured_piece is None: # En-passant
-        captured_piece_type = chess.PAWN
+    
+    # Get value of piece on destination square
+    if board.is_en_passant(move):
+        capture_value = PIECE_VALUES[chess.PAWN]
     else:
-        captured_piece_type = captured_piece.piece_type
+        captured_piece = board.piece_at(move.to_square)
+        if not captured_piece: return 0 # Should not happen
+        capture_value = PIECE_VALUES.get(captured_piece.piece_type, 0)
 
-    # The 'gains' list will store the value of pieces in the exchange sequence.
-    gains = [PIECE_VALUES.get(captured_piece_type, 0)]
-
-    # 2. Simulate the captures on a temporary board.
-    temp_board = board.copy(stack=False)
-    temp_board.push(move)
-    side_to_move = temp_board.turn
+    # Make the move on a temporary board
+    board_after_move = board.copy()
+    board_after_move.push(move)
     
-    # The piece that made the last move is the current attacker.
-    last_attacker_piece = temp_board.piece_at(to_sq)
+    # The value of the exchange is the captured piece minus what can be recaptured by the opponent.
+    value = capture_value - _see_exchange(board_after_move, move.to_square)
+    return value
 
-    while last_attacker_piece:
-        # Find the least valuable attacker for the other side.
-        attackers = temp_board.attackers(side_to_move, to_sq)
-        if not attackers:
-            break
+def _see_exchange(board, target_square):
+    """
+    Calculates the value of the best recapture on a square, from the perspective of the side to move.
+    """
+    # Find the least valuable attacker for the side to move
+    attackers = board.attackers(board.turn, target_square)
+    if not attackers:
+        return 0 # No attackers, exchange is over, no value lost for the opponent
 
-        lva_square = -1
-        min_piece_val = float('inf')
-        lva_piece = None
-        for attacker_sq in attackers:
-            piece = temp_board.piece_at(attacker_sq)
-            piece_val = PIECE_VALUES.get(piece.piece_type, 0)
-            if piece_val < min_piece_val:
-                min_piece_val = piece_val
-                lva_square = attacker_sq
-                lva_piece = piece
-
-        if lva_square == -1:
-            break
-
-        # The value of the piece just captured is added to the gains list.
-        gains.append(PIECE_VALUES.get(last_attacker_piece.piece_type, 0))
-        
-        # Simulate the recapture.
-        temp_board.remove_piece_at(lva_square)
-        temp_board.set_piece_at(to_sq, lva_piece)
-        last_attacker_piece = lva_piece
-        side_to_move = not side_to_move
+    lva_square = min(attackers, key=lambda s: PIECE_VALUES.get(board.piece_at(s).piece_type, 0))
+    lva_piece = board.piece_at(lva_square)
+    if not lva_piece: return 0
     
-    # 3. Negamax the gains list to find the final score.
-    # A player will not continue an exchange if it results in a loss for them.
-    score = 0
-    # The side to move can choose to stop the exchange. We start with the second to last capture.
-    for i in range(len(gains) - 1, 0, -1):
-        score = max(0, gains[i] - score)
-    
-    # The first capture is forced, so we don't cap it at 0.
-    return gains[0] - score
+    # Value of the piece making the recapture
+    recapture_value = PIECE_VALUES.get(lva_piece.piece_type, 0)
 
-# Check if a move is a losing exchange or hangs a piece.
+    # Make the recapture on a temporary board
+    board_after_recapture = board.copy()
+    recapture_move = chess.Move(lva_square, target_square)
+    if lva_piece.piece_type == chess.PAWN and chess.square_rank(target_square) in [0, 7]:
+        recapture_move.promotion = chess.QUEEN
+    board_after_recapture.push(recapture_move)
+    
+    # The value of this exchange is the piece we just captured (the previous attacker)
+    # minus the value of the subsequent exchange from the other player's perspective.
+    value = recapture_value - _see_exchange(board_after_recapture, target_square)
+
+    # The side to move will not make a capture if it loses material, so cap at 0.
+    return max(0, value)
+
+
 def check_for_material_loss(board_before, move_played, info_after, board_after, turn_color):
-    move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
-    # Case 1: Move is a capture
+    move_num = board_before.fullmove_number if turn_color == chess.WHITE else f"{board_before.fullmove_number}..."
+    
     if board_before.is_capture(move_played):
         see_value = see(board_before, move_played)
-        if see_value < -100: # loses at least a pawn worth of material
-            return {"category": "Losing Exchange", "move_number": move_num, "description": "You entered into an unfavorable material exchange."}
-    
-    # Case 2: Move is not a capture, but hangs a piece
-    else:
-        # Check if the opponent's best response is to capture a piece with a favorable exchange.
-        if 'pv' in info_after and info_after['pv']:
-            opponent_best_move = info_after['pv'][0]
-            if board_after.is_capture(opponent_best_move):
-                see_value = see(board_after, opponent_best_move)
-                if see_value > 100: # opponent can capture at least a pawn worth of material
-                    captured_piece = board_after.piece_at(opponent_best_move.to_square)
-                    if captured_piece:
-                        piece_name = chess.piece_name(captured_piece.piece_type).capitalize()
-                    else: # En-passant case
-                        piece_name = "Pawn"
-                    
-                    description = f"Your move left your {piece_name} undefended, allowing the opponent to win material."
+        if see_value < -100:
+            return {"category": "Losing Exchange", "move_number": move_num, "description": f"Your move {move_played.uci()} was a losing exchange."}
+
+    for square in chess.SQUARES:
+        piece = board_after.piece_at(square)
+        if piece and piece.color == turn_color:
+            attackers = board_after.attackers(not turn_color, square)
+            if attackers:
+                least_valuable_attacker_square = min(attackers, key=lambda s: PIECE_VALUES.get(board_after.piece_at(s).piece_type, 0))
+                capture_move = chess.Move(least_valuable_attacker_square, square)
+                if board_after.piece_at(least_valuable_attacker_square).piece_type == chess.PAWN and chess.square_rank(square) in [0, 7]:
+                    capture_move.promotion = chess.QUEEN
+                
+                if see(board_after, capture_move) > 100:
+                    piece_name = PIECE_NAMES.get(piece.piece_type, "piece")
+                    description = f"Your move {move_played.uci()} left your {piece_name} on {chess.square_name(square)} undefended."
                     return {"category": "Hanging a Piece", "move_number": move_num, "description": description}
 
-    # If no material loss is found, return None
     return None
 
-# Check if player missed oppurtunity to gain material.
 def check_for_missed_material_gain(board_before, best_move_info, board_after, turn_color):
-    move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
+    move_num = board_before.fullmove_number if turn_color == chess.WHITE else f"{board_before.fullmove_number}..."
     best_move = best_move_info['pv'][0]
     if board_before.is_capture(best_move):
         see_value = see(board_before, best_move)
-        if see_value > 100: # opponent can capture at least a pawn worth of material
+        if see_value > 100:
             return {"category": "Missed Material Gain", "move_number": move_num, "description": f"You missed a chance to win material with {best_move.uci()}."}
     return None
 
-# Converts a score object (from Stockfish) to an integer used for calculations.
-# This number is always from the perspective of the target player.
-def get_pov_score(score_obj, player_color):
-    # The score object from Stockfish is always either a mate score or a centipawn score.
-    # So if it's a mate score:
-    if score_obj.is_mate():
-        # get mate in x object from the perspective of the player.
-        # note, positive score means player can force mate in x moves.
-        # negative score means opponent can force mate in x moves.
-        mate_in_x = score_obj.pov(player_color).mate()
-        # if positive, return large positive value. if negative, return large negative value.
-        # subtract mateinx * 10 to differentiate between mates of different lengths (Min1: 99990, Min2: 99980, etc)
-        return (100000 if mate_in_x > 0 else -100000) - (mate_in_x * 10)
-    else:
-        # if it's a centipawn score, just return the score.
-        return score_obj.pov(player_color).score()
-
-# Modern logic, converts centipawns to win probability using a sigmoid function.
-# Win probability is preferred becuase change in centipawns have different impacts 
-# depending on the current win probability of the player. 
-# (i.e. -200 centipawns is weighted more if position is equal 
-# than if player is close to winning)
-def get_win_probability(centipawns: int) -> float:
-    """Converts a centipawn evaluation to a win probability (0.0 to 100.0)."""
-    # Formula inspired by Lichess's win probability formula.
-    return 50 + 50 * (2 / (1 + math.exp(-0.00368208 * centipawns)) - 1)
+def detect_fork(board_before, best_move, board_after, turn_color):
+    move_num = board_before.fullmove_number if turn_color == chess.WHITE else f"{board_before.fullmove_number}..."
     
-# Compares current move and engines best move,decides if its a blunder, and if so, what category.
-# Checks for most severe blunders first, then moves down the list.
-# info returned if blunder is found currently includes:
-# - category
-# - move number
- # - description
-def categorize_blunder(engine, board_before, move_played, best_move_info, win_prob_threshold, think_time):
-    # Get color of target player
-    turn_color = board_before.turn
+    board_with_best_move = board_before.copy()
+    board_with_best_move.push(best_move)
 
-    # Create temp board se see position after player move, then analyze that position.
-    board_after = board_before.copy(); board_after.push(move_played)
-    info_after = engine.analyse(board_after, chess.engine.Limit(time=think_time))
-
-    # --- Absolute Blunders (Mates) ---
-    # These are blunders regardless of win probability drop.
-    # Check 1: "Missed Checkmate"
-    if best_move_info["score"].is_mate() and best_move_info["score"].pov(turn_color).mate() > 0:
-        move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
-        return {"category": "Missed Checkmate", "move_number": move_num, "description": f"You missed a checkmate in {best_move_info['score'].pov(turn_color).mate()} moves."}
-
-    # Check 2: "Allowed Checkmate"
-    if info_after["score"].is_mate() and info_after["score"].pov(turn_color).mate() < 0:
-        move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
-        return {"category": "Allowed Checkmate", "move_number": move_num, "description": f"Your move allows the opponent to force checkmate in {abs(info_after['score'].pov(turn_color).mate())} moves."}
-
-    # --- Win Probability-Based Blunders ---
-    # Now, check if the move qualifies as a blunder by the threshold.
-    cp_best_move = get_pov_score(best_move_info["score"], turn_color) 
-    win_prob_best_move = get_win_probability(cp_best_move)  
-    cp_after_player_move = get_pov_score(info_after["score"], turn_color)
-    win_prob_after_player_move = get_win_probability(cp_after_player_move)
-    win_prob_drop = win_prob_best_move - win_prob_after_player_move
-
-    # If win prob drop is not significant, it's not a blunder.
-    if win_prob_drop < win_prob_threshold:
+    attacker_piece = board_with_best_move.piece_at(best_move.to_square)
+    if not attacker_piece:
         return None
-        
-    # --- If it is a blunder, categorize it down the hierarchy ---
-    # Check 3: "Losing Exchange" or "Hanging a Piece"
-    if (category_info := check_for_material_loss(board_before, move_played, info_after, board_after, turn_color)):
-        return category_info
+
+    attacked_squares = board_with_best_move.attacks(best_move.to_square)
     
-    # Check 4: "Missed Material Gain"
-    if (category_info := check_for_missed_material_gain(board_before, best_move_info, board_after, turn_color)):
-        return category_info
+    opponent_pieces_attacked = []
+    for attacked_square in attacked_squares:
+        piece = board_with_best_move.piece_at(attacked_square)
+        if piece and piece.color != turn_color:
+            opponent_pieces_attacked.append(piece)
 
-    # Bottom Check: "Mistake" (Fallback category)
-    move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number-1}..."
-    return {
-        "category": "Mistake",
-        "move_number": move_num,
-        "description": f"This move dropped your win probability by {round(win_prob_drop, 1)}%.",
-        "win_prob_drop": round(win_prob_drop, 2),
-        "eval_after": cp_after_player_move,
-        "eval_before": cp_best_move, 
-    }
+    valuable_pieces_attacked = [p for p in opponent_pieces_attacked if p.piece_type > chess.PAWN]
+    
+    if len(valuable_pieces_attacked) >= 2:
+        piece_names = [PIECE_NAMES.get(p.piece_type, "piece") for p in valuable_pieces_attacked]
+        forked_pieces = " and ".join(piece_names)
+        attacker_name = PIECE_NAMES.get(attacker_piece.piece_type, "piece")
+        return {"category": "Missed Fork", "move_number": move_num, "description": f"You missed a fork with {best_move.uci()}. The {attacker_name} could have attacked the {forked_pieces}."}
 
-# Analyzes each move in a game.
-# Calls categorize_blunder for each move.
-# Returns list of blunders found.
-def find_blunders(pgn_filename, stockfish_path, player_name, win_prob_threshold, think_time):
-    if not os.path.exists(stockfish_path): return None
-    all_blunders = []
-    try:
-        # Open pgn bulk file
-        with open(pgn_filename, encoding='utf-8') as pgn_file:
-            # Start engine only once for efficiency
-            with chess.engine.SimpleEngine.popen_uci(stockfish_path) as engine:
-                game_count = 0
-                # Iterate through each game in the pgn file
-                while True:
-                    game = chess.pgn.read_game(pgn_file)
-                    if game is None: break # End of file
-                    game_count += 1
-                    board = game.board() # Get board object for current game
-                    white_player = game.headers.get("White", "?").lower() # Get white player
-                    black_player = game.headers.get("Black", "?").lower() # Get black player
-                    print(f"\nAnalyzing game #{game_count}: {white_player} vs {black_player}")
-                    # Iterate through each move in the game
-                    for move in game.mainline_moves():
-                        # Get color of current turn and check if its the players turn
-                        turn_color = board.turn 
-                        is_player_turn = (turn_color == chess.WHITE and white_player == player_name.lower()) or \
-                                         (turn_color == chess.BLACK and black_player == player_name.lower()) 
-                        
-                        board_before_move = board.copy() # Get board before move
-                        board.push(move) # Play a move on board
+    return None
 
-                        # If its not target players turn, skip to next move
-                        if not is_player_turn: continue
+def cp_to_win_prob(cp):
+    if cp is None:
+        return 0.5
+    return 1 / (1 + math.exp(-0.004 * cp))
 
-                        # If it is target players turn, analyze move
-                        analysis_results = engine.analyse(board_before_move, chess.engine.Limit(time=think_time), multipv=1)
-                        best_move_info = analysis_results[0]
+def categorize_blunder(board_before, move_played, info_before, info_after, best_move_info):
+    turn_color = board_before.turn
+    move_num = board_before.fullmove_number if turn_color == chess.WHITE else f"{board_before.fullmove_number}..."
+    board_after = board_before.copy()
+    board_after.push(move_played)
 
-                        # Categorize blunder
-                        blunder_data = categorize_blunder(engine, board_before_move, move, best_move_info, win_prob_threshold, think_time)
-                        if blunder_data:
-                            # Update blunder data with move info
-                            blunder_data.update({
-                                "move_played": move.uci(),
-                                "best_move": best_move_info['pv'][0].uci(),
-                                "fen_before_move": board_before_move.fen(),
-                                "game_link": game.headers.get("Link", "#")})
-                            all_blunders.append(blunder_data)
-                            print(f"  -> {blunder_data['category']}: On move {blunder_data['move_number']}, you played {blunder_data['move_played']}. {blunder_data['description']} The best move was {blunder_data['best_move']}.")
-    except FileNotFoundError: return None
-    return all_blunders
+    if info_after["score"].is_mate() and info_after["score"].pov(turn_color).mate() < 0:
+        mate_in = abs(info_after["score"].pov(turn_color).mate())
+        return {"category": "Allowed Checkmate", "move_number": move_num, "description": f"Your move {move_played.uci()} allows the opponent to force checkmate in {mate_in} moves. The best move was {best_move_info['pv'][0].uci()}."}
+
+    if best_move_info["score"].is_mate() and best_move_info["score"].pov(turn_color).mate() > 0:
+        mate_in = best_move_info["score"].pov(turn_color).mate()
+        return {"category": "Missed Checkmate", "move_number": move_num, "description": f"You missed a checkmate in {mate_in} moves. The best move was {best_move_info['pv'][0].uci()}."}
+        
+    material_loss = check_for_material_loss(board_before, move_played, info_after, board_after, turn_color)
+    if material_loss:
+        return material_loss
+        
+    best_move = best_move_info['pv'][0]
+    missed_material = check_for_missed_material_gain(board_before, best_move_info, board_after, turn_color)
+    if missed_material:
+        return missed_material
+    
+    missed_fork = detect_fork(board_before, best_move, board_after, turn_color)
+    if missed_fork:
+        return missed_fork
+
+    win_prob_before = cp_to_win_prob(info_before["score"].pov(turn_color).score(mate_score=10000))
+    win_prob_after = cp_to_win_prob(info_after["score"].pov(turn_color).score(mate_score=10000))
+    win_prob_drop = (win_prob_before - win_prob_after) * 100
+    
+    return {"category": "Mistake", "move_number": move_num, "description": f"On move {move_num}, you played {move_played.uci()}. This move dropped your win probability by {win_prob_drop:.1f}%. The best move was {best_move_info['pv'][0].uci()}."}
+
+def analyze_game(game, engine, user_to_find, win_prob_threshold, engine_think_time):
+    # ... (rest of the file is unchanged)
+    # ... (I will only write the changed part of the file)
+    blunders = []
+    board = game.board()
+    board_before = board.copy()
+
+    for move in game.mainline_moves():
+        user_color = None
+        if game.headers["White"].lower() == user_to_find.lower():
+            user_color = chess.WHITE
+        elif game.headers["Black"].lower() == user_to_find.lower():
+            user_color = chess.BLACK
+        
+        info_before = engine.analyse(board, chess.engine.Limit(time=engine_think_time))
+        board.push(move)
+        info_after = engine.analyse(board, chess.engine.Limit(time=engine_think_time))
+
+        if board.turn != user_color and user_color is not None:
+            best_move_info = info_before
+            current_eval = info_after["score"].pov(user_color)
+            best_eval = best_move_info["score"].pov(user_color)
+
+            if not current_eval.is_mate() and not best_eval.is_mate():
+                win_prob_before = cp_to_win_prob(best_eval.score())
+                win_prob_after = cp_to_win_prob(current_eval.score())
+                win_prob_drop = (win_prob_before - win_prob_after) * 100
+                
+                if win_prob_drop >= win_prob_threshold:
+                    blunder_info = categorize_blunder(board_before, move, info_before, info_after, best_move_info)
+                    if blunder_info:
+                        blunders.append(blunder_info)
+            
+            elif best_eval.is_mate() and best_eval.mate() > 0 and not current_eval.is_mate():
+                blunder_info = categorize_blunder(board_before, move, info_before, info_after, best_move_info)
+                if blunder_info:
+                    blunders.append(blunder_info)
+
+            elif current_eval.is_mate() and current_eval.mate() < 0:
+                 blunder_info = categorize_blunder(board_before, move, info_before, info_after, best_move_info)
+                 if blunder_info:
+                    blunders.append(blunder_info)
+
+        board_before = board.copy()
+        
+    return blunders
+
+def main():
+    parser = argparse.ArgumentParser(description="Analyze chess games to find blunders.")
+    parser.add_argument("--pgn", required=True, help="Path to the PGN file.")
+    parser.add_argument("--username", required=True, help="Your chess.com username to analyze blunders for.")
+    parser.add_argument("--stockfish_path", default=STOCKFISH_PATH_DEFAULT, help="Path to the Stockfish executable.")
+    parser.add_argument("--win_prob_threshold", type=float, default=WIN_PROB_THRESHOLD_DEFAULT, help="Win probability drop threshold for a blunder.")
+    parser.add_argument("--engine_think_time", type=float, default=ENGINE_THINK_TIME_DEFAULT, help="Engine think time per move in seconds.")
+    args = parser.parse_args()
+
+    # --- Standalone Test Mode ---
+    print("--- Running analysis in standalone test mode ---\n")
+    engine = chess.engine.SimpleEngine.popen_uci(args.stockfish_path)
+    pgn_file = open(args.pgn)
+    game_num = 1
+    total_blunders = []
+
+    while True:
+        game = chess.pgn.read_game(pgn_file)
+        if game is None:
+            break
+
+        white_player = game.headers.get("White", "Unknown")
+        black_player = game.headers.get("Black", "Unknown")
+        print(f"Analyzing game #{game_num}: {white_player} vs {black_player}")
+
+        blunders = analyze_game(game, engine, args.username, args.win_prob_threshold, args.engine_think_time)
+        
+        for blunder in blunders:
+            print(f"  -> {blunder['category']}: On move {blunder['move_number']}, {blunder['description']}")
+            total_blunders.append(blunder)
+
+        game_num += 1
+
+    engine.quit()
+    print("\n--- Analysis Complete ---")
+    print(f"Found a total of {len(total_blunders)} mistakes/blunders for user '{args.username}'.\n")
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Analyze a PGN file for a player's blunders.")
-    parser.add_argument("--pgn", type=str, required=True, help="Path to the PGN file to analyze.")
-    parser.add_argument("--username", type=str, required=True, help="The username of the player to analyze.")
-    parser.add_argument("--think_time", type=float, default=ENGINE_THINK_TIME_DEFAULT, help="Engine think time per move in seconds.")
-    parser.add_argument("--threshold", type=float, default=WIN_PROB_THRESHOLD_DEFAULT, help="Win probability drop to be considered a mistake (e.g., 20.0 for a blunder).")
-    args = parser.parse_args()
-    print("\n--- Running analysis in standalone test mode ---")
-    blunders_found = find_blunders(pgn_filename=args.pgn, stockfish_path=STOCKFISH_PATH_DEFAULT, player_name=args.username, win_prob_threshold=args.threshold, think_time=args.think_time)
-    if blunders_found is not None:
-        print(f"\n--- Analysis Complete ---")
-        print(f"Found a total of {len(blunders_found)} mistakes/blunders for user '{args.username}'.")
+    main()
