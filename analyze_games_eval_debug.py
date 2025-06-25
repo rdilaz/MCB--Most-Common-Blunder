@@ -8,7 +8,20 @@ import math
 # ---- Constants ----
 STOCKFISH_PATH_DEFAULT = os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe")
 BLUNDER_THRESHOLD_DEFAULT = 10
-ENGINE_THINK_TIME_DEFAULT = 0.1
+ENGINE_THINK_TIME_DEFAULT = 0.3
+
+BLUNDER_CATEGORY_PRIORITY = {
+    "Allowed Checkmate": 1,
+    "Missed Checkmate": 2,
+    "Allowed Fork": 3,
+    "Missed Fork": 4,
+    "Allowed Pin": 5,
+    "Missed Pin": 6,
+    "Hanging a Piece": 7,
+    "Losing Exchange": 8,
+    "Missed Material Gain": 9,
+    "Mistake": 10
+}
 
 PIECE_VALUES = {
     chess.PAWN: 100,
@@ -59,6 +72,19 @@ def see_exchange(board, target_square):
 def cp_to_win_prob(cp):
     if cp is None: return 0.5
     return 1 / (1 + math.exp(-0.004 * cp))
+
+#---- Helper to get all absolute pins for a color ----
+def get_absolute_pins(board, color):
+    pins = []
+    king_square = board.king(color)
+    if king_square is None:
+        return pins
+    for square in chess.SQUARES:
+        piece = board.piece_at(square)
+        if piece and piece.color == color and board.is_pinned(color, square):
+            pinner_square = board.pin(color, square)
+            pins.append((square, pinner_square))
+    return pins
 
 #---- Blunder Categorization Functions ----
 def check_for_missed_mate(board_before, best_move_info, after_move_eval, turn_color, move_num):
@@ -141,7 +167,7 @@ def check_for_missed_fork(board_before, best_move_info, turn_color):
         return {"category": "Missed Fork", "move_number": move_num, "description": description, "punishing_move": best_move, "specificity": 4}
     return None
 
-def allowed_fork(board_after, info_after_move, turn_color, debug_mode):
+def check_for_allowed_fork(board_after, info_after_move, turn_color, debug_mode):
     if not info_after_move.get('pv'): return None
     move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number}..."
     opponent_best_move = info_after_move['pv'][0]
@@ -174,45 +200,44 @@ def check_for_missed_pin(board_before, best_move_info, turn_color):
     if not best_move_info.get('pv'): return None
     move_num = board_before.fullmove_number if turn_color == chess.WHITE else f"{board_before.fullmove_number}..."
     best_move = best_move_info['pv'][0]
-    
+    # Pins before
+    pins_before = get_absolute_pins(board_before, not turn_color)
+    # After best move
     board_with_best_move = board_before.copy()
     board_with_best_move.push(best_move)
-    pinner_piece = board_with_best_move.piece_at(best_move.to_square)
-    if not pinner_piece or pinner_piece.piece_type not in [chess.QUEEN, chess.ROOK, chess.BISHOP]:
-        return None
-
-    # This logic uses the board's built-in is_pinned() method for simplicity and accuracy
-    for square in chess.SQUARES:
-        if board_with_best_move.is_pinned(not turn_color, square):
-            # Check if this pin was created by the best_move
-            pinner_square = board_with_best_move.pin(not turn_color, square)
-            if pinner_square == best_move.to_square:
-                best_move_san = board_before.san(best_move)
-                pinned_piece_name = PIECE_NAMES.get(board_with_best_move.piece_at(square).piece_type, "piece")
-                description = f"You missed a pin on the {pinned_piece_name} with {best_move_san}."
-                return {"category": "Missed Pin", "move_number": move_num, "description": description, "punishing_move": best_move, "specificity": 4}
+    pins_after = get_absolute_pins(board_with_best_move, not turn_color)
+    # Find new pins
+    new_pins = [pin for pin in pins_after if pin not in pins_before]
+    if new_pins:
+        pinned_square, pinner_square = new_pins[0]
+        best_move_san = board_before.san(best_move)
+        pinned_piece = board_with_best_move.piece_at(pinned_square)
+        pinned_piece_name = PIECE_NAMES.get(pinned_piece.piece_type, "piece") if pinned_piece else "piece"
+        description = f"You missed a pin on the {pinned_piece_name} with {best_move_san}."
+        return {"category": "Missed Pin", "move_number": move_num, "description": description, "punishing_move": best_move, "specificity": 4}
     return None
 
 def check_for_allowed_pin(board_after, info_after_move, turn_color):
     if not info_after_move.get('pv'): return None
     move_num = board_after.fullmove_number if turn_color == chess.WHITE else f"{board_after.fullmove_number}..."
     opponent_best_move = info_after_move['pv'][0]
-
     if opponent_best_move not in board_after.legal_moves: return None
 
+    # Pins before
+    pins_before = get_absolute_pins(board_after, turn_color)
+    # After opponent's best move
     board_after_opponent_move = board_after.copy()
     board_after_opponent_move.push(opponent_best_move)
-    
-    # This logic uses the board's built-in is_pinned() method
-    for square in chess.SQUARES:
-        # We are checking if our (turn_color) piece is now pinned
-        if board_after_opponent_move.is_pinned(turn_color, square):
-            pinner_square = board_after_opponent_move.pin(turn_color, square)
-            if pinner_square == opponent_best_move.to_square:
-                opponent_best_move_san = board_after.san(opponent_best_move)
-                pinned_piece_name = PIECE_NAMES.get(board_after_opponent_move.piece_at(square).piece_type, "piece")
-                description = f"Your last move allows the opponent to create a pin on your {pinned_piece_name} with {opponent_best_move_san}."
-                return {"category": "Allowed Pin", "move_number": move_num, "description": description, "punishing_move": opponent_best_move, "specificity": 5}
+    pins_after = get_absolute_pins(board_after_opponent_move, turn_color)
+    # Find new pins
+    new_pins = [pin for pin in pins_after if pin not in pins_before]
+    if new_pins:
+        pinned_square, pinner_square = new_pins[0]
+        opponent_best_move_san = board_after.san(opponent_best_move)
+        pinned_piece = board_after_opponent_move.piece_at(pinned_square)
+        pinned_piece_name = PIECE_NAMES.get(pinned_piece.piece_type, "piece") if pinned_piece else "piece"
+        description = f"Your last move allows the opponent to create a pin on your {pinned_piece_name} with {opponent_best_move_san}."
+        return {"category": "Allowed Pin", "move_number": move_num, "description": description, "punishing_move": opponent_best_move, "specificity": 5}
     return None
 
 
@@ -228,7 +253,7 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
     check_functions = [
         (check_for_allowed_mate, [board_before, after_move_eval, move_num, move_played, best_move_info, info_after_move]),
         (check_for_missed_mate, [board_before, best_move_info, after_move_eval, turn_color, move_num]),
-        (allowed_fork, [board_after, info_after_move, turn_color, debug_mode]),
+        (check_for_allowed_fork, [board_after, info_after_move, turn_color, debug_mode]),
         (check_for_missed_fork, [board_before, best_move_info, turn_color]),
         (check_for_allowed_pin, [board_after, info_after_move, turn_color]),
         (check_for_missed_pin, [board_before, best_move_info, turn_color]),
@@ -296,7 +321,14 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
         for b in ranked_blunders:
             print(f"[DEBUG]   - Category: {b['category']}, Severity: {b.get('severity_score', 'N/A')}, Specificity: {b.get('specificity', 0)}")
 
-    final_blunder = min(ranked_blunders, key=lambda x: (x.get("severity_score", 99999), -x.get("specificity", 0)))
+    final_blunder = min(
+        ranked_blunders,
+        key=lambda x: (
+            BLUNDER_CATEGORY_PRIORITY.get(x.get("category", "Mistake"), 99),
+            -x.get("specificity", 0),
+            x.get("severity_score", 99999)
+        )
+    )
     if debug_mode: print(f"\n[DEBUG] --- Final Decision ---")
     if debug_mode: print(f"[DEBUG] Selected Blunder: {final_blunder['category']} (Score: {final_blunder['severity_score']})")
     
