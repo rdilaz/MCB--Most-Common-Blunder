@@ -40,8 +40,10 @@
 [Black "?"]
 [Result "*"]
 [Link "https://www.chess.com/analysis/game/pgn/4rgemk3uiv?tab=analysis&move=0"]
-[Comment "4: Allowed Opportunity to Gain Material - Move 6]
+[Comment "4: Hanging a Piece - Move 6]
 1. e4 e5 2. Nf3 Nc6 3. Bc4 d6 4. Nc3 Bg4 5. O-O Bxf3 $6 6. Nd5 $4 *
+
+{LOSING EXCHANGE GAME HERE}
 
 [Event "?"]
 [Site "?"]
