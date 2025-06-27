@@ -3,6 +3,9 @@ body {
   font-family: "Sofia Sans", sans-serif;
   font-weight: 150;
   font-style: normal;
+  margin: 0;
+  padding: 0;
+  background-color: #f8f9fa;
 }
 
 /* Styling for the main header */
@@ -15,35 +18,358 @@ header {
 }
 
 header h1 {
-    font-family: 'Playfair Display', serif; /* Use Playfair Display for the main title */
-    font-size: 3rem; /* Make the title a bit bigger */
-    font-weight: 400; /* Use the bold version we imported */
+    font-family: 'Playfair Display', serif;
+    font-size: 3rem;
+    font-weight: 400;
+    margin: 0;
+}
+
+header p {
+    margin: 10px 0 0 0;
+    font-size: 1.1rem;
+    opacity: 0.9;
 }
 
 /* Center the main content area */
 main {
-    width: 80%;
+    width: 90%;
+    max-width: 800px;
     margin: auto;
+    padding: 20px;
 }
 
-/* Styling for each individual blunder 'card' */
+/* Form Styling */
+.input-section {
+    background-color: #fff;  
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+    text-align: center;
+}
+
+.form-group {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 15px;
+}
+
+.form-group label {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: #333;
+}
+
+#username-input {
+    padding: 12px 20px;
+    font-size: 1.1rem;
+    border: 2px solid #ddd;
+    border-radius: 8px;
+    width: 300px;
+    max-width: 100%;
+    transition: border-color 0.3s;
+}
+
+#username-input:focus {
+    outline: none;
+    border-color: #007bff;
+}
+
+#analyze-btn {
+    background-color: #007bff;
+    color: white;
+    padding: 12px 30px;
+    font-size: 1.1rem;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+#analyze-btn:hover {
+    background-color: #0056b3;
+}
+
+/* Loading State */
+.loading-section {
+    text-align: center;
+    padding: 40px;
+    background-color: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.loading-spinner {
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #007bff;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.loading-details {
+    color: #666;
+    font-style: italic;
+}
+
+/* Error State */
+.error-section {
+    background-color: #f8d7da;
+    color: #721c24;
+    padding: 20px;
+    border-radius: 10px;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.error-section button {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 5px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+/* Hero Summary Section */
+.hero-summary {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 40px;
+    border-radius: 15px;
+    text-align: center;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+}
+
+.hero-summary h2 {
+    margin-top: 0;
+    font-size: 1.8rem;
+}
+
+.most-common-blunder {
+    margin: 30px 0;
+}
+
+.most-common-blunder h3 {
+    font-size: 1.5rem;
+    margin-bottom: 20px;
+}
+
+.blunder-stat {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
+    margin-bottom: 15px;
+}
+
+.blunder-category {
+    background-color: rgba(255,255,255,0.2);
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.blunder-percentage {
+    background-color: rgba(255,255,255,0.3);
+    padding: 10px 20px;
+    border-radius: 25px;
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.blunder-example {
+    background-color: rgba(255,255,255,0.1);
+    padding: 15px;
+    border-radius: 10px;
+    font-style: italic;
+    margin: 0;
+}
+
+/* Statistics Overview */
+.stats-overview {
+    display: flex;
+    justify-content: center;
+    gap: 40px;
+    margin-top: 30px;
+    flex-wrap: wrap;
+}
+
+.stat-item {
+    text-align: center;
+}
+
+.stat-number {
+    display: block;
+    font-size: 2.5rem;
+    font-weight: 600;
+    line-height: 1;
+}
+
+.stat-label {
+    display: block;
+    font-size: 1rem;
+    opacity: 0.9;
+    margin-top: 5px;
+}
+
+/* Category Breakdown */
+.category-breakdown {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    margin-bottom: 30px;
+}
+
+.category-breakdown h3 {
+    margin-top: 0;
+    color: #333;
+    text-align: center;
+}
+
+.category-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+    margin-top: 20px;
+}
+
+.category-item {
+    background-color: #f8f9fa;
+    padding: 15px;
+    border-radius: 8px;
+    border-left: 4px solid #007bff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.category-name {
+    font-weight: 600;
+    color: #333;
+}
+
+.category-count {
+    background-color: #007bff;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 0.9rem;
+}
+
+/* Toggle Section */
+.toggle-section {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+#toggle-blunders-btn {
+    background-color: #28a745;
+    color: white;
+    padding: 12px 25px;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background-color 0.3s;
+}
+
+#toggle-blunders-btn:hover {
+    background-color: #218838;
+}
+
+/* Individual Blunders Container */
+.blunders-container {
+    background-color: #fff;
+    padding: 30px;
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
+
+.blunders-container h3 {
+    margin-top: 0;
+    color: #333;
+    text-align: center;
+}
+
+/* Individual Blunder Cards */
 .blunder-card {
     background-color: #fff;
     border: 1px solid #ddd;
-    border-radius: 5px;
+    border-radius: 8px;
     padding: 20px;
-    margin-bottom: 20px;
+    margin-bottom: 15px;
     box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    border-left: 4px solid #d9534f;
 }
 
-.blunder-card h3 {
-    color: #d9534f; /* A reddish color for the blunder title */
+.blunder-card h4 {
+    color: #d9534f;
+    margin-top: 0;
+    font-size: 1.2rem;
+}
+
+.blunder-card p {
+    margin: 8px 0;
+    line-height: 1.5;
+}
+
+.blunder-move {
+    background-color: #f8f9fa;
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-family: monospace;
+    font-weight: 600;
 }
 
 /* Simple footer styling */
 footer {
     text-align: center;
     margin-top: 40px;
-    font-size: 0.8em;
+    padding: 20px;
+    font-size: 0.9em;
     color: #777;
+    background-color: #f8f9fa;
+}
+
+/* Responsive Design */
+@media (max-width: 600px) {
+    header h1 {
+        font-size: 2rem;
+    }
+    
+    main {
+        width: 95%;
+        padding: 10px;
+    }
+    
+    #username-input {
+        width: 100%;
+    }
+    
+    .blunder-stat {
+        flex-direction: column;
+        gap: 10px;
+    }
+    
+    .stats-overview {
+        gap: 20px;
+    }
+    
+    .stat-number {
+        font-size: 2rem;
+    }
 }

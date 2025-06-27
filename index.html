@@ -24,24 +24,95 @@
 
     <!-- Main content -->
     <main>
-      <h2>Analysis for Player: <strong>poopy</strong></h2>
-
-      <button id="toggle-blunders-btn">Toggle Blunders</button>
-
-      <div class="blunder-card">
-        <h3>Blunder 1: Missed Tactic</h3>
-        <p><strong>Game:</strong> vs. ZDStone11</p>
-        <p><strong>Move:</strong> 20... b5</p>
-        <p><strong>Evaluation Drop:</strong> 694cp</p>
-        <p><strong>Position:</strong> (We will show a chessboard here later)</p>
+      <!-- Username Input Form -->
+      <div class="input-section">
+        <form id="analysis-form">
+          <div class="form-group">
+            <label for="username-input">Chess.com Username:</label>
+            <input
+              type="text"
+              id="username-input"
+              name="username"
+              placeholder="Enter your username"
+              required
+            >
+            <button type="submit" id="analyze-btn">Analyze My Games</button>
+          </div>
+        </form>
       </div>
 
-      <div class="blunder-card">
-        <h3>Blunder 2: Hanging a Piece</h3>
-        <p><strong>Game:</strong> vs. OpponentX</p>
-        <p><strong>Move:</strong> 15. Nf3</p>
-        <p><strong>Evaluation Drop:</strong> 450cp</p>
-        <p><strong>Position:</strong> (We will show a chessboard here later)</p>
+      <!-- Loading State -->
+      <div id="loading-section" class="loading-section" style="display: none">
+        <div class="loading-spinner"></div>
+        <p>Fetching your games and analyzing blunders...</p>
+        <p class="loading-details">This may take a moment...</p>
+      </div>
+
+      <!-- Error State -->
+      <div id="error-section" class="error-section" style="display: none">
+        <h3>⚠️ Analysis Failed</h3>
+        <p id="error-message"></p>
+        <button
+          onclick="document.getElementById('error-section').style.display='none'"
+        >
+          Try Again
+        </button>
+      </div>
+
+      <!-- Results Section -->
+      <div id="results-section" class="results-section" style="display: none">
+        <!-- Most Common Blunder Summary -->
+        <div class="hero-summary">
+          <h2>Analysis for Player: <strong id="player-name"></strong></h2>
+          <div class="most-common-blunder">
+            <h3>🎯 Your Most Common Blunder</h3>
+            <div class="blunder-stat">
+              <span class="blunder-category" id="most-common-category"></span>
+              <span
+                class="blunder-percentage"
+                id="most-common-percentage"
+              ></span>
+            </div>
+            <p class="blunder-example" id="most-common-example"></p>
+          </div>
+
+          <!-- Statistics Overview -->
+          <div class="stats-overview">
+            <div class="stat-item">
+              <span class="stat-number" id="games-analyzed">0</span>
+              <span class="stat-label">Games Analyzed</span>
+            </div>
+            <div class="stat-item">
+              <span class="stat-number" id="total-blunders">0</span>
+              <span class="stat-label">Total Blunders</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="category-breakdown">
+          <h3>📊 Blunder Category Breakdown</h3>
+          <div id="category-list" class="category-list">
+            <!-- Will be populated by JavaScript -->
+          </div>
+        </div>
+
+        <!-- Toggle for Detailed Blunders -->
+        <div class="toggle-section">
+          <button id="toggle-blunders-btn">Show All Individual Blunders</button>
+        </div>
+
+        <!-- Individual Blunders List -->
+        <div
+          id="blunders-container"
+          class="blunders-container"
+          style="display: none"
+        >
+          <h3>📋 All Individual Blunders</h3>
+          <div id="blunder-cards-container">
+            <!-- Will be populated by JavaScript -->
+          </div>
+        </div>
       </div>
     </main>
 
