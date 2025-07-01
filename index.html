@@ -41,11 +41,45 @@
         </form>
       </div>
 
-      <!-- Loading State -->
-      <div id="loading-section" class="loading-section" style="display: none">
-        <div class="loading-spinner"></div>
-        <p>Fetching your games and analyzing blunders...</p>
-        <p class="loading-details">This may take a moment...</p>
+      <!-- Loading Section -->
+      <div id="loading-section" class="loading" style="display: none">
+        <div class="loading-content">
+          <div class="spinner"></div>
+          <p>Analyzing your chess games...</p>
+          <p class="loading-subtext">This may take a few moments</p>
+        </div>
+      </div>
+
+      <!-- Real-time Progress Section -->
+      <div id="progress-section" class="progress-section" style="display: none">
+        <div class="progress-content">
+          <h3>🔍 Analysis in Progress</h3>
+
+          <!-- Progress Bar -->
+          <div class="progress-bar-container">
+            <div class="progress-bar" id="progress-bar">
+              <div class="progress-fill" id="progress-fill"></div>
+            </div>
+            <div class="progress-text">
+              <span id="progress-percentage">0%</span>
+              <span id="progress-time">0s elapsed</span>
+            </div>
+          </div>
+
+          <!-- Current Step -->
+          <div class="current-step">
+            <div class="step-icon" id="step-icon">🚀</div>
+            <div class="step-message" id="step-message">
+              Starting analysis...
+            </div>
+          </div>
+
+          <!-- Progress Log -->
+          <div class="progress-log">
+            <div class="progress-log-header">Progress Log:</div>
+            <div class="progress-log-content" id="progress-log"></div>
+          </div>
+        </div>
       </div>
 
       <!-- Error State -->
@@ -73,7 +107,7 @@
                 id="most-common-percentage"
               ></span>
             </div>
-            <p class="blunder-example" id="most-common-example"></p>
+            <p class="blunder-description" id="most-common-example"></p>
           </div>
 
           <!-- Statistics Overview -->

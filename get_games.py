@@ -1,6 +1,7 @@
 import requests
 import json
 import argparse
+import time  # Add time import for performance tracking
 
 def fetch_user_games(username, num_games, selected_types, rated_filter):
     """
@@ -13,6 +14,7 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
     Returns:
         str: The name of the created PGN file, or None if an error occurs.
     """
+    fetch_start = time.time()
     main_url = f"https://api.chess.com/pub/player/{username}/games/archives"
     headers = {"User-Agent": "MCB/1.0 (https://github.com/rdilaz/MCB--Most-Common-Blunder)"}
 
@@ -21,21 +23,38 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
     print(f"Config: Fetching last {num_games} games for '{username}' | Types: '{type_str}' | Filter: '{rated_filter}'")
 
     try:
+        # Step 1: Get archives list
+        archives_start = time.time()
+        print(f"   🔍 Fetching archives list...")
         response = requests.get(main_url, headers=headers)
         response.raise_for_status()
         archives_data = response.json()
         archive_urls = archives_data.get("archives", [])
+        archives_time = time.time() - archives_start
+        print(f"   ✅ Found {len(archive_urls)} monthly archives in {archives_time:.3f} seconds")
 
         pgns = []
+        archives_processed = 0
+        
+        # Step 2: Process each archive (starting from most recent)
+        games_start = time.time()
         for archive_url in reversed(archive_urls):
             if len(pgns) >= num_games:
                 break
 
+            archives_processed += 1
+            month_start = time.time()
+            print(f"   📅 Processing archive {archives_processed}/{len(archive_urls)}...")
+            
             monthly_response = requests.get(archive_url, headers=headers)
             monthly_response.raise_for_status()
             monthly_games_data = monthly_response.json()
             games_in_month = monthly_games_data.get("games", [])
+            
+            month_time = time.time() - month_start
+            print(f"   ✅ Retrieved {len(games_in_month)} games from archive in {month_time:.3f} seconds")
 
+            games_added_this_month = 0
             for game_data in reversed(games_in_month):
                 if len(pgns) >= num_games:
                     break
@@ -56,16 +75,27 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
                 pgn_string = game_data.get("pgn")
                 if pgn_string:
                     pgns.append(pgn_string)
+                    games_added_this_month += 1
+            
+            print(f"   📊 Added {games_added_this_month} games after filtering (Total: {len(pgns)}/{num_games})")
 
-        print(f"\nSuccessfully fetched {len(pgns)} games.")
+        games_time = time.time() - games_start
+        print(f"✅ Game collection completed in {games_time:.2f} seconds")
+        print(f"Successfully fetched {len(pgns)} games.")
 
         # --- IMPROVED FILENAME LOGIC ---
+        file_start = time.time()
         type_for_filename = type_str.replace(", ", "-") if selected_types else "all"
         file_name = f"{username}_last_{len(pgns)}_{type_for_filename}_{rated_filter}.pgn"
         
+        print(f"   💾 Writing PGN file '{file_name}'...")
         with open(file_name, "w", encoding="utf-8") as f:
             f.write("\n\n".join(pgns))
-
+        
+        file_time = time.time() - file_start
+        total_time = time.time() - fetch_start
+        print(f"   ✅ PGN file written in {file_time:.3f} seconds")
+        print(f"🎉 Total fetch time: {total_time:.2f} seconds")
         print(f"PGN file saved as '{file_name}'")
         return file_name
     
