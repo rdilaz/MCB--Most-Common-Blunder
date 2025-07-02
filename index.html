@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MCB - Most Common Blunder</title>
+    <title>MCB - Most Common Blunder Analysis</title>
 
     <!-- Import fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -14,145 +14,146 @@
     >
 
     <link rel="stylesheet" href="styles.css">
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    >
   </head>
   <body>
-    <!-- Header/Title -->
-    <header>
-      <h1>MCB - Most Common Blunder</h1>
-      <p>Input your Chess.com username to see your most common blunders!</p>
-    </header>
+    <div class="container">
+      <header class="header">
+        <div class="logo">
+          <h1>🎯 MCB</h1>
+          <p>Most Common Blunder Analysis</p>
+        </div>
+      </header>
 
-    <!-- Main content -->
-    <main>
-      <!-- Username Input Form -->
-      <div class="input-section">
-        <form id="analysis-form">
-          <div class="form-group">
-            <label for="username-input">Chess.com Username:</label>
+      <main class="main-content">
+        <div class="input-section">
+          <h2>🎮 Chess Analysis</h2>
+          <p class="subtitle">
+            Identify your most common blunders and improve your game
+          </p>
+
+          <div class="input-group">
+            <label for="username">Chess.com Username</label>
             <input
               type="text"
-              id="username-input"
-              name="username"
-              placeholder="Enter your username"
+              id="username"
+              placeholder="Enter your Chess.com username"
               required
             >
-            <button type="submit" id="analyze-btn">Analyze My Games</button>
-          </div>
-        </form>
-      </div>
-
-      <!-- Loading Section -->
-      <div id="loading-section" class="loading" style="display: none">
-        <div class="loading-content">
-          <div class="spinner"></div>
-          <p>Analyzing your chess games...</p>
-          <p class="loading-subtext">This may take a few moments</p>
-        </div>
-      </div>
-
-      <!-- Real-time Progress Section -->
-      <div id="progress-section" class="progress-section" style="display: none">
-        <div class="progress-content">
-          <h3>🔍 Analysis in Progress</h3>
-
-          <!-- Progress Bar -->
-          <div class="progress-bar-container">
-            <div class="progress-bar" id="progress-bar">
-              <div class="progress-fill" id="progress-fill"></div>
-            </div>
-            <div class="progress-text">
-              <span id="progress-percentage">0%</span>
-              <span id="progress-time">0s elapsed</span>
-            </div>
           </div>
 
-          <!-- Current Step -->
-          <div class="current-step">
-            <div class="step-icon" id="step-icon">🚀</div>
-            <div class="step-message" id="step-message">
-              Starting analysis...
-            </div>
-          </div>
+          <!-- NEW: Analysis Settings Panel -->
+          <div class="settings-panel">
+            <h3>⚙️ Analysis Settings</h3>
+            <div class="settings-grid">
+              <div class="setting-group">
+                <label for="gameCount"
+                  >Number of Games: <span id="gameCountValue">20</span></label
+                >
+                <input
+                  type="range"
+                  id="gameCount"
+                  min="1"
+                  max="50"
+                  value="20"
+                  class="slider"
+                >
+                <small>Analyze your most recent games (max 50)</small>
+              </div>
 
-          <!-- Progress Log -->
-          <div class="progress-log">
-            <div class="progress-log-header">Progress Log:</div>
-            <div class="progress-log-content" id="progress-log"></div>
-          </div>
-        </div>
-      </div>
+              <div class="setting-group">
+                <label for="gameTypes">Game Types</label>
+                <select multiple id="gameTypes" class="multi-select">
+                  <option value="bullet">🔥 Bullet (1-2 min)</option>
+                  <option value="blitz" selected>⚡ Blitz (3-5 min)</option>
+                  <option value="rapid" selected>🎯 Rapid (10-15 min)</option>
+                  <option value="classical">🏰 Classical (30+ min)</option>
+                </select>
+                <small>Hold Ctrl/Cmd to select multiple</small>
+              </div>
 
-      <!-- Error State -->
-      <div id="error-section" class="error-section" style="display: none">
-        <h3>⚠️ Analysis Failed</h3>
-        <p id="error-message"></p>
-        <button
-          onclick="document.getElementById('error-section').style.display='none'"
-        >
-          Try Again
-        </button>
-      </div>
+              <div class="setting-group">
+                <label for="ratingFilter">Rating Filter</label>
+                <select id="ratingFilter">
+                  <option value="all">All Games</option>
+                  <option value="rated" selected>Rated Games Only</option>
+                  <option value="unrated">Unrated Games Only</option>
+                </select>
+              </div>
 
-      <!-- Results Section -->
-      <div id="results-section" class="results-section" style="display: none">
-        <!-- Most Common Blunder Summary -->
-        <div class="hero-summary">
-          <h2>Analysis for Player: <strong id="player-name"></strong></h2>
-          <div class="most-common-blunder">
-            <h3>🎯 Your Most Common Blunder</h3>
-            <div class="blunder-stat">
-              <span class="blunder-category" id="most-common-category"></span>
-              <span
-                class="blunder-percentage"
-                id="most-common-percentage"
-              ></span>
-            </div>
-            <p class="blunder-description" id="most-common-example"></p>
-          </div>
-
-          <!-- Statistics Overview -->
-          <div class="stats-overview">
-            <div class="stat-item">
-              <span class="stat-number" id="games-analyzed">0</span>
-              <span class="stat-label">Games Analyzed</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-number" id="total-blunders">0</span>
-              <span class="stat-label">Total Blunders</span>
+              <div class="setting-group">
+                <label for="analysisDepth">Analysis Depth</label>
+                <select id="analysisDepth">
+                  <option value="fast">Fast (0.1s per move)</option>
+                  <option value="balanced" selected>
+                    Balanced (0.2s per move)
+                  </option>
+                  <option value="deep">Deep (0.5s per move)</option>
+                </select>
+                <small>Higher depth = more accurate but slower</small>
+              </div>
             </div>
           </div>
+
+          <button id="analyzeBtn" class="analyze-btn">
+            <span class="btn-text">🔍 Analyze My Games</span>
+            <span class="btn-loader hidden">⏳ Analyzing...</span>
+          </button>
         </div>
 
-        <!-- Category Breakdown -->
-        <div class="category-breakdown">
-          <h3>📊 Blunder Category Breakdown</h3>
-          <div id="category-list" class="category-list">
-            <!-- Will be populated by JavaScript -->
+        <!-- Progress Section -->
+        <div id="progressSection" class="progress-section hidden">
+          <h3>📊 Analysis Progress</h3>
+          <div class="progress-container">
+            <div class="progress-bar">
+              <div id="progressBar" class="progress-fill"></div>
+            </div>
+            <div id="progressText" class="progress-text">0%</div>
+          </div>
+          <div id="progressLog" class="progress-log"></div>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsSection" class="results-section hidden">
+          <div class="results-header">
+            <h3>🎯 Your Most Common Blunders</h3>
+            <p id="analysisStats" class="analysis-stats"></p>
+          </div>
+
+          <div id="heroStat" class="hero-stat">
+            <div class="hero-stat-header">
+              <h4 id="heroStatTitle">🥇 #1 Most Common Blunder</h4>
+              <div class="hero-stat-score">
+                <span id="heroStatScore">--</span>
+                <small>severity score</small>
+              </div>
+            </div>
+            <div id="heroStatDescription" class="hero-stat-description"></div>
+            <div id="heroStatExamples" class="hero-stat-examples"></div>
+          </div>
+
+          <div id="gamesAnalyzed" class="games-analyzed">
+            <h4>🎲 Games Analyzed</h4>
+            <p class="games-analyzed-subtitle">
+              Click any game link to view it on Chess.com
+            </p>
+            <div id="gamesList" class="games-list"></div>
+          </div>
+
+          <div id="otherBlunders" class="other-blunders">
+            <h4>📋 All Blunder Patterns</h4>
+            <div id="blundersList" class="blunders-list"></div>
           </div>
         </div>
+      </main>
 
-        <!-- Toggle for Detailed Blunders -->
-        <div class="toggle-section">
-          <button id="toggle-blunders-btn">Show All Individual Blunders</button>
-        </div>
-
-        <!-- Individual Blunders List -->
-        <div
-          id="blunders-container"
-          class="blunders-container"
-          style="display: none"
-        >
-          <h3>📋 All Individual Blunders</h3>
-          <div id="blunder-cards-container">
-            <!-- Will be populated by JavaScript -->
-          </div>
-        </div>
-      </div>
-    </main>
-
-    <footer>
-      <p>&copy; 2025 MCB Project</p>
-    </footer>
+      <footer class="footer">
+        <p>&copy; 2025 MCB Project</p>
+      </footer>
+    </div>
 
     <!-- Import JavaScript -->
     <script src="main.js"></script>

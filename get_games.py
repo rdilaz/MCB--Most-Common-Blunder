@@ -12,7 +12,7 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
         selected_types (list): A list of game types to fetch.
         rated_filter (str): The filter to apply to the games.
     Returns:
-        str: The name of the created PGN file, or None if an error occurs.
+        tuple: (pgn_filename, games_metadata) where games_metadata is a list of game info dicts
     """
     fetch_start = time.time()
     main_url = f"https://api.chess.com/pub/player/{username}/games/archives"
@@ -25,15 +25,16 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
     try:
         # Step 1: Get archives list
         archives_start = time.time()
-        print(f"   🔍 Fetching archives list...")
+        print(f"   [INFO] Fetching archives list...")
         response = requests.get(main_url, headers=headers)
         response.raise_for_status()
         archives_data = response.json()
         archive_urls = archives_data.get("archives", [])
         archives_time = time.time() - archives_start
-        print(f"   ✅ Found {len(archive_urls)} monthly archives in {archives_time:.3f} seconds")
+        print(f"   [SUCCESS] Found {len(archive_urls)} monthly archives in {archives_time:.3f} seconds")
 
         pgns = []
+        games_metadata = []
         archives_processed = 0
         
         # Step 2: Process each archive (starting from most recent)
@@ -44,7 +45,7 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
 
             archives_processed += 1
             month_start = time.time()
-            print(f"   📅 Processing archive {archives_processed}/{len(archive_urls)}...")
+            print(f"   [ARCHIVE] Processing archive {archives_processed}/{len(archive_urls)}...")
             
             monthly_response = requests.get(archive_url, headers=headers)
             monthly_response.raise_for_status()
@@ -52,7 +53,7 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
             games_in_month = monthly_games_data.get("games", [])
             
             month_time = time.time() - month_start
-            print(f"   ✅ Retrieved {len(games_in_month)} games from archive in {month_time:.3f} seconds")
+            print(f"   [SUCCESS] Retrieved {len(games_in_month)} games from archive in {month_time:.3f} seconds")
 
             games_added_this_month = 0
             for game_data in reversed(games_in_month):
@@ -74,13 +75,40 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
                 
                 pgn_string = game_data.get("pgn")
                 if pgn_string:
+                    # Extract game metadata
+                    white_player = game_data.get("white", {}).get("username", "Unknown")
+                    black_player = game_data.get("black", {}).get("username", "Unknown")
+                    game_url = game_data.get("url", "")
+                    end_time = game_data.get("end_time", 0)
+                    time_class = game_data.get("time_class", "unknown")
+                    rated = game_data.get("rated", False)
+                    
+                    # Format end time
+                    import datetime
+                    try:
+                        game_date = datetime.datetime.fromtimestamp(end_time).strftime("%Y-%m-%d %H:%M")
+                    except:
+                        game_date = "Unknown date"
+                    
+                    # Store game metadata
+                    game_info = {
+                        "url": game_url,
+                        "white": white_player,
+                        "black": black_player,
+                        "date": game_date,
+                        "time_class": time_class,
+                        "rated": rated,
+                        "target_player": username  # Which player we're analyzing
+                    }
+                    
                     pgns.append(pgn_string)
+                    games_metadata.append(game_info)
                     games_added_this_month += 1
             
-            print(f"   📊 Added {games_added_this_month} games after filtering (Total: {len(pgns)}/{num_games})")
+            print(f"   [STATS] Added {games_added_this_month} games after filtering (Total: {len(pgns)}/{num_games})")
 
         games_time = time.time() - games_start
-        print(f"✅ Game collection completed in {games_time:.2f} seconds")
+        print(f"[SUCCESS] Game collection completed in {games_time:.2f} seconds")
         print(f"Successfully fetched {len(pgns)} games.")
 
         # --- IMPROVED FILENAME LOGIC ---
@@ -88,20 +116,27 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
         type_for_filename = type_str.replace(", ", "-") if selected_types else "all"
         file_name = f"{username}_last_{len(pgns)}_{type_for_filename}_{rated_filter}.pgn"
         
-        print(f"   💾 Writing PGN file '{file_name}'...")
+        print(f"   [FILE] Writing PGN file '{file_name}'...")
         with open(file_name, "w", encoding="utf-8") as f:
             f.write("\n\n".join(pgns))
         
         file_time = time.time() - file_start
         total_time = time.time() - fetch_start
-        print(f"   ✅ PGN file written in {file_time:.3f} seconds")
-        print(f"🎉 Total fetch time: {total_time:.2f} seconds")
+        print(f"   [SUCCESS] PGN file written in {file_time:.3f} seconds")
+        print(f"[COMPLETE] Total fetch time: {total_time:.2f} seconds")
         print(f"PGN file saved as '{file_name}'")
-        return file_name
+        
+        # Also save games metadata as JSON for debugging
+        metadata_file = file_name.replace('.pgn', '_metadata.json')
+        with open(metadata_file, 'w', encoding='utf-8') as f:
+            json.dump(games_metadata, f, indent=2)
+        print(f"Game metadata saved as '{metadata_file}'")
+        
+        return file_name, games_metadata
     
     except requests.exceptions.RequestException as e:
         print(f"API error occurred: {e}")
-        return None
+        return None, []
 
 # argparse for debugging
 if __name__ == "__main__":
@@ -137,9 +172,15 @@ if __name__ == "__main__":
     # If the user provides no flags, the list remains empty, which we'll treat as "all".
 
     print("\n--- Running in standalone test mode ---")
-    fetch_user_games(
+    pgn_file, games_metadata = fetch_user_games(
         username=args.username,
         num_games=args.num_games,
         selected_types=selected_types, # Pass the list to our function
         rated_filter=args.filter
     )
+    
+    if pgn_file and games_metadata:
+        print(f"\n[GAMES] Games analyzed:")
+        for i, game in enumerate(games_metadata, 1):
+            print(f"  {i}. {game['white']} vs {game['black']} ({game['time_class']}) - {game['date']}")
+            print(f"     [LINK] {game['url']}")

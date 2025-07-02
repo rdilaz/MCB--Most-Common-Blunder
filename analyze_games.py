@@ -207,7 +207,7 @@ def quick_blunder_heuristics(board_before, move_played, best_move_info, turn_col
     return False # no heuristics triggered, skip second engine call
 
 #---- Blunder Categorization Functions ----
-def check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode):
+def check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode, actual_move_number):
     """
     Checks for missed material gain using SEE calculations.
     Returns 'Missed Material Gain' blunder dict if a missed material gain is found, otherwise None.
@@ -215,10 +215,15 @@ def check_for_missed_material_gain(board_before, best_move_info, move_played, de
     Uses: see.
     Time complexity: O(1) 
     """
-    move_num = board_before.fullmove_number # get move number
     if not best_move_info.get('pv'): return None # safety, if no best move, return None
     
     best_move = best_move_info['pv'][0] # get best move
+    
+    # CRITICAL FIX: Don't flag the best move as a missed opportunity!
+    if best_move == move_played:
+        if debug_mode: print(f"[DEBUG] Move played ({board_before.san(move_played)}) IS the best move - no missed material gain")
+        return None
+    
     if board_before.is_capture(best_move): # check if best move is a capture
         see_value = see(board_before, best_move) # calculate static exchange evaluation
         if see_value > 100: # if capture is worth more than 100 points (more than a pawn)
@@ -227,12 +232,16 @@ def check_for_missed_material_gain(board_before, best_move_info, move_played, de
             best_move_san = board_before.san(best_move) # convert move to SAN format
             move_played_san = board_before.san(move_played) # convert move to SAN format
             description = f"your move {move_played_san} missed a chance to win a {piece_name} with {best_move_san}." # create description
-            if debug_mode: print(f"[DEBUG] Missed material gain detected with SEE value: {see_value}") # debug output
-            return {"category": "Missed Material Gain", "move_number": move_num, "description": description, "punishing_move": best_move} # return blunder dict
+            if debug_mode: 
+                print(f"[DEBUG] Missed material gain detected:")
+                print(f"[DEBUG]   Move played: {move_played_san}")
+                print(f"[DEBUG]   Best move: {best_move_san}")
+                print(f"[DEBUG]   SEE value: {see_value}")
+            return {"category": "Missed Material Gain", "move_number": actual_move_number, "description": description, "punishing_move": best_move} # return blunder dict
     
     return None
 
-def check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode):
+def check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number):
     """
     Checks for material loss using SEE calculations.
     Returns 'Losing Exchange' or 'Hanging a Piece' blunder dict if a material loss is found, otherwise None.
@@ -240,7 +249,6 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
     Uses: see.
     Time complexity: O(64) = O(1) 
     """
-    move_num = board_before.fullmove_number # get move number
     move_played_san = board_before.san(move_played) # convert move to SAN format
     
     # Check for losing exchange
@@ -252,7 +260,7 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
             net_loss = abs(see_value) # calculate net loss
             description = f"your move {move_played_san} initiates a losing exchange. You capture a {captured_piece_name} but lose {net_loss} centipawns in the sequence." # create description
             if debug_mode: print(f"[DEBUG] Losing exchange detected with SEE value: {see_value}") # debug output
-            return {"category": "Losing Exchange", "move_number": move_num, "description": description, "punishing_move": None} # return blunder dict
+            return {"category": "Losing Exchange", "move_number": actual_move_number, "description": description, "punishing_move": None} # return blunder dict
     
     # Check for hanging pieces using SEE
     for square in chess.SQUARES: # iterate over all squares
@@ -274,12 +282,17 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
                 if see_value >= piece_value - 50: # if capture is worth more than 50 points less than piece value
                     piece_name = PIECE_NAMES.get(piece.piece_type, "piece") # get name of piece
                     description = f"your move {move_played_san} left your {piece_name} on {chess.square_name(square)} undefended." # create description
-                    if debug_mode: print(f"[DEBUG] Hanging piece detected with SEE value: {see_value}") # debug output
-                    return {"category": "Hanging a Piece", "move_number": move_num, "description": description, "punishing_move": capture_move} # return blunder dict
+                    if debug_mode: 
+                        print(f"[DEBUG] Hanging piece detected:")
+                        print(f"[DEBUG]   Move played: {move_played_san}")
+                        print(f"[DEBUG]   Hanging piece: {piece_name} on {chess.square_name(square)}")
+                        print(f"[DEBUG]   SEE value: {see_value}")
+                        print(f"[DEBUG]   Note: This might be acceptable if it's the best move")
+                    return {"category": "Hanging a Piece", "move_number": actual_move_number, "description": description, "punishing_move": capture_move} # return blunder dict
     
     return None
 
-def check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode):
+def check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number):
     """
     Checks if the best move would have created a fork.
     Returns a 'Missed Fork' blunder dict if found, otherwise None.
@@ -287,8 +300,12 @@ def check_for_missed_fork(board_before, best_move_info, turn_color, move_played,
     Time complexity: O(1) 
     """
     if not best_move_info.get('pv'): return None # safety, if no best move, return None
-    move_num = board_before.fullmove_number # get move number
     best_move = best_move_info['pv'][0] # get best move
+    
+    # CRITICAL FIX: Don't flag the best move as a missed opportunity!
+    if best_move == move_played:
+        if debug_mode: print(f"[DEBUG] Move played ({board_before.san(move_played)}) IS the best move - no missed fork")
+        return None
     
     board_with_best_move = board_before.copy() # copy board
     board_with_best_move.push(best_move) # apply best move to copied board
@@ -306,11 +323,15 @@ def check_for_missed_fork(board_before, best_move_info, turn_color, move_played,
         best_move_san = board_before.san(best_move) # convert move to SAN format
         move_played_san = board_before.san(move_played) # convert move to SAN format
         description = f"your move {move_played_san} missed a fork with {best_move_san}. The {attacker_name} could have attacked the {forked_pieces}." # create description
-        if debug_mode: print(f"[DEBUG] Found Missed Fork") # debug output
-        return {"category": "Missed Fork", "move_number": move_num, "description": description, "punishing_move": best_move} # return blunder dict
+        if debug_mode: 
+            print(f"[DEBUG] Missed fork detected:")
+            print(f"[DEBUG]   Move played: {move_played_san}")
+            print(f"[DEBUG]   Best move: {best_move_san}")
+            print(f"[DEBUG]   Fork targets: {forked_pieces}")
+        return {"category": "Missed Fork", "move_number": actual_move_number, "description": description, "punishing_move": best_move} # return blunder dict
     return None
 
-def check_for_allowed_fork(board_after, info_after_move, turn_color, move_played, board_before, debug_mode):
+def check_for_allowed_fork(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number):
     """
     Detects if the player's last move allowed the opponent to create a fork.
     Returns an 'Allowed Fork' blunder dict if found, otherwise None.
@@ -318,7 +339,6 @@ def check_for_allowed_fork(board_after, info_after_move, turn_color, move_played
     Time complexity: O(1) 
     """
     if not info_after_move.get('pv'): return None # safety, if no best move, return None
-    move_num = board_after.fullmove_number # get move number
     opponent_best_move = info_after_move['pv'][0] # get opponent's best move
     
     if opponent_best_move not in board_after.legal_moves: return None # safety, if not legal, return None
@@ -344,10 +364,10 @@ def check_for_allowed_fork(board_after, info_after_move, turn_color, move_played
             move_played_san = board_before.san(move_played) # convert move to SAN format
             description = f"your move {move_played_san} allows the opponent to play {opponent_best_move_san}, creating a fork with their {forker_name} that attacks your {forked_pieces}." # create description
             if debug_mode: print(f"[DEBUG] Found Allowed Fork") # debug output
-            return {"category": "Allowed Fork", "move_number": move_num, "description": description, "punishing_move": opponent_best_move} # return blunder dict
+            return {"category": "Allowed Fork", "move_number": actual_move_number, "description": description, "punishing_move": opponent_best_move} # return blunder dict
     return None
 
-def check_for_missed_pin(board_before, best_move_info, turn_color, move_played, debug_mode):
+def check_for_missed_pin(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number):
     """
     Checks if the best move would have created an absolute pin.
     Returns a 'Missed Pin' blunder dict if found, otherwise None.
@@ -356,9 +376,13 @@ def check_for_missed_pin(board_before, best_move_info, turn_color, move_played, 
     Time complexity: O(1) 
     """
     if not best_move_info.get('pv'): return None # safety, if no best move, return None
-    move_num = board_before.fullmove_number # get move number
     best_move = best_move_info['pv'][0] # get best move
     move_played_san = board_before.san(move_played) # convert move to SAN format
+    
+    # CRITICAL FIX: Don't flag the best move as a missed opportunity!
+    if best_move == move_played:
+        if debug_mode: print(f"[DEBUG] Move played ({move_played_san}) IS the best move - no missed pin")
+        return None
     
     # Pins before
     pins_before = get_absolute_pins(board_before, not turn_color) # get pins before best move
@@ -374,11 +398,15 @@ def check_for_missed_pin(board_before, best_move_info, turn_color, move_played, 
         pinned_piece = board_with_best_move.piece_at(pinned_square) # get pinned piece
         pinned_piece_name = PIECE_NAMES.get(pinned_piece.piece_type, "piece") if pinned_piece else "piece" # get piece name
         description = f"your move {move_played_san} missed an absolute pin on the {pinned_piece_name} with {best_move_san}." # create description
-        if debug_mode: print(f"[DEBUG] Found Missed Pin") # debug output
-        return {"category": "Missed Pin", "move_number": move_num, "description": description, "punishing_move": best_move} # return blunder dict
+        if debug_mode: 
+            print(f"[DEBUG] Missed pin detected:")
+            print(f"[DEBUG]   Move played: {move_played_san}")
+            print(f"[DEBUG]   Best move: {best_move_san}")
+            print(f"[DEBUG]   Pin target: {pinned_piece_name}")
+        return {"category": "Missed Pin", "move_number": actual_move_number, "description": description, "punishing_move": best_move} # return blunder dict
     return None
 
-def check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode):
+def check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number):
     """
     Detects if the player's last move allowed the opponent to create an absolute pin.
     Returns an 'Allowed Pin' blunder dict if found, otherwise None.
@@ -387,7 +415,6 @@ def check_for_allowed_pin(board_after, info_after_move, turn_color, move_played,
     Time complexity: O(1) 
     """
     if not info_after_move.get('pv'): return None # safety, if no best move, return None
-    move_num = board_after.fullmove_number # get move number
     opponent_best_move = info_after_move['pv'][0] # get opponent best move
     if opponent_best_move not in board_after.legal_moves: return None # safety, if not legal, return None
 
@@ -407,10 +434,10 @@ def check_for_allowed_pin(board_after, info_after_move, turn_color, move_played,
         move_played_san = board_before.san(move_played) # convert move to SAN format
         description = f"your move {move_played_san} allows the opponent to create an absolute pin on your {pinned_piece_name} with {opponent_best_move_san}." # create description
         if debug_mode: print(f"[DEBUG] Found Allowed Pin") # debug output
-        return {"category": "Allowed Pin", "move_number": move_num, "description": description, "punishing_move": opponent_best_move} # return blunder dict
+        return {"category": "Allowed Pin", "move_number": actual_move_number, "description": description, "punishing_move": opponent_best_move} # return blunder dict
     return None
 
-def categorize_blunder(board_before, board_after, move_played, info_before_move, info_after_move, best_move_info, blunder_threshold, debug_mode):
+def categorize_blunder(board_before, board_after, move_played, info_before_move, info_after_move, best_move_info, blunder_threshold, debug_mode, actual_move_number):
     """
     Categorization pipeline. Tries to find the most specific blunder category.
     Returns a dictionary with blunder info, or a general 'Mistake' if no specific category is found.
@@ -419,56 +446,60 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
     Time complexity: O(n) where n is number of check functions (currently 6).
     """
     move_played_san = board_before.san(move_played) # convert move to SAN format
-    if debug_mode: print(f"\n--- [DEBUG] Categorizing Blunder for move {move_played_san} ---") # debug output
+    if debug_mode: print(f"\n--- [DEBUG] Categorizing Blunder for move {move_played_san} (Move #{actual_move_number}) ---") # debug output
     
     turn_color = board_before.turn # get player color
-    move_num = board_before.fullmove_number # get move number
     after_move_eval = info_after_move["score"].pov(turn_color) # get evaluation after move from player's perspective
+    
+    # GLOBAL SAFETY CHECK: If this is the engine's best move, don't flag it as any blunder
+    best_move = best_move_info.get('pv', [None])[0] if best_move_info.get('pv') else None
+    if best_move and best_move == move_played:
+        if debug_mode: print(f"[DEBUG] GLOBAL CHECK: Move played ({move_played_san}) IS the engine's best move - no blunder categorization")
+        return None
     
     # Check 1: Allowed Checkmate (highest priority)
     if after_move_eval.is_mate() and after_move_eval.mate() < 0: # if opponent can force mate
         mate_in = abs(after_move_eval.mate()) # get number of moves to mate
         description = f"your move {move_played_san} allows the opponent to force checkmate in {mate_in}." # create description
         if debug_mode: print(f"[DEBUG] Found Allowed Checkmate") # debug output
-        return {"category": "Allowed Checkmate", "move_number": move_num, "description": description} # return blunder dict
+        return {"category": "Allowed Checkmate", "move_number": actual_move_number, "description": description} # return blunder dict
     
     # Check 2: Missed Checkmate
     best_move_eval = best_move_info["score"].pov(turn_color) # get best move evaluation from player's perspective
     if best_move_eval.is_mate() and best_move_eval.mate() > 0 and not after_move_eval.is_mate(): # if best move is mate but played move is not
         mate_in = best_move_eval.mate() # get number of moves to mate
-        best_move = best_move_info['pv'][0] # get best move
         best_move_san = board_before.san(best_move) # convert move to SAN format
         description = f"your move {move_played_san} missed a checkmate in {mate_in}. The best move was {best_move_san}." # create description
         if debug_mode: print(f"[DEBUG] Found Missed Checkmate") # debug output
-        return {"category": "Missed Checkmate", "move_number": move_num, "description": description} # return blunder dict
+        return {"category": "Missed Checkmate", "move_number": actual_move_number, "description": description} # return blunder dict
     
     # Check 3: Allowed Fork
-    allowed_fork = check_for_allowed_fork(board_after, info_after_move, turn_color, move_played, board_before, debug_mode) # check for allowed fork
+    allowed_fork = check_for_allowed_fork(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed fork
     if allowed_fork: # if allowed fork found
         return allowed_fork # return the blunder
     
     # Check 4: Missed Fork
-    missed_fork = check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode) # check for missed fork
+    missed_fork = check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed fork
     if missed_fork: # if missed fork found
         return missed_fork # return the blunder
     
     # Check 5: Allowed Pin
-    allowed_pin = check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode) # check for allowed pin
+    allowed_pin = check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed pin
     if allowed_pin: # if allowed pin found
         return allowed_pin # return the blunder
     
     # Check 6: Missed Pin
-    missed_pin = check_for_missed_pin(board_before, best_move_info, turn_color, move_played, debug_mode) # check for missed pin
+    missed_pin = check_for_missed_pin(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed pin
     if missed_pin: # if missed pin found
         return missed_pin # return the blunder
     
     # Check 7: Material Loss using SEE
-    material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode) # check for material loss
+    material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number) # check for material loss
     if material_blunder: # if material loss found
         return material_blunder # return the blunder
     
     # Check 8: Missed Material Gain using SEE
-    missed_material = check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode) # check for missed material gain
+    missed_material = check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode, actual_move_number) # check for missed material gain
     if missed_material: # if missed material gain found
         return missed_material # return the blunder
     
@@ -483,7 +514,7 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
         best_move_san = board_before.san(best_move_info['pv'][0]) # convert best move to SAN format
         description = f"your move {move_played_san} dropped your win probability by {win_prob_drop:.1f}%. The best move was {best_move_san}." # create description
         if debug_mode: print(f"[DEBUG] Found Mistake based on win probability") # debug output
-        return {"category": "Mistake", "move_number": move_num, "description": description} # return blunder dict
+        return {"category": "Mistake", "move_number": actual_move_number, "description": description} # return blunder dict
     
     if debug_mode: print(f"[DEBUG] No blunder detected") # debug output
     return None # no blunder found
@@ -504,6 +535,7 @@ def analyze_game(game, engine, target_user, blunder_threshold, engine_think_time
     # Statistics tracking
     total_moves = 0 # count of moves analyzed
     engine_calls_made = 0 # count of engine calls made
+    user_move_count = 0 # track user's actual move numbers
 
     # ---- find target user's color ----
     if game.headers.get("White", "").lower() == target_user.lower(): # check if user is white
@@ -518,7 +550,19 @@ def analyze_game(game, engine, target_user, blunder_threshold, engine_think_time
     for move in game.mainline_moves(): # for each move actually played in the game
         if board.turn == user_color: # if it's the target user's turn
             total_moves += 1 # increment move counter
+            user_move_count += 1 # increment user move counter
             board_before = board.copy() # get board state before the move
+            
+            # Calculate correct move number (matches Chess.com notation)
+            if user_color == chess.WHITE:
+                actual_move_number = board_before.fullmove_number
+            else:  # black
+                actual_move_number = board_before.fullmove_number
+            
+            if debug_mode:
+                move_san = board_before.san(move)
+                color_str = "White" if user_color == chess.WHITE else "Black"
+                print(f"[DEBUG] Analyzing {color_str} move #{user_move_count}: {move_san} (fullmove: {board_before.fullmove_number})")
             
             # ALWAYS do first engine call (get best move and evaluation)
             info_before_move = engine.analyse(board, chess.engine.Limit(time=engine_think_time)) # get eval and best move from before the move was made
@@ -539,7 +583,7 @@ def analyze_game(game, engine, target_user, blunder_threshold, engine_think_time
                 # Full blunder analysis with both evaluations
                 blunder_info = categorize_blunder(
                     board_before, board, move, info_before_move, info_after_move, best_move_info,
-                    blunder_threshold, debug_mode
+                    blunder_threshold, debug_mode, actual_move_number
                 ) # analyze for blunders
                 if blunder_info: # if blunder found
                     blunders.append(blunder_info) # add to blunders list

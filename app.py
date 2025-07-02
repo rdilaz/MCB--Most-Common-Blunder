@@ -11,6 +11,16 @@ import time  # Add time import for performance tracking
 import json
 import threading
 import queue
+from threading import Thread
+import logging
+import subprocess
+import tempfile
+import re
+import glob
+
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)
@@ -39,6 +49,7 @@ BLUNDER_GENERAL_DESCRIPTIONS = {
 # Global progress tracking
 progress_queues = {}
 progress_lock = threading.Lock()
+progress_trackers = {}
 
 def send_progress_update(session_id, step, message, progress_percent=None, time_elapsed=None):
     """Send a progress update to the specified session"""
@@ -280,88 +291,428 @@ def analyze_multiple_games(pgn_file_path, username, stockfish_path, blunder_thre
         "blunders": all_blunders
     }
 
-@app.route("/api/analyze/<string:username>")
-def analyze_player(username):
-    """
-    Main API endpoint to fetch games, analyze them, and return blunders.
-    """
-    # Get session ID from query parameter or generate one
-    session_id = request.args.get('session_id')
-    if not session_id:
-        session_id = f"{username}_{int(time.time())}"
+@app.route("/api/analyze", methods=['POST'])
+def analyze_endpoint():
+    """Handle analysis requests with new settings support"""
+    global progress_trackers
     
-    total_start = time.time()
-    print(f"\n🚀 Starting analysis for player: {username} (Session: {session_id})")
-    print(f"⚙️  Configuration: {GAMES_TO_FETCH} games, {ENGINE_THINK_TIME}s think time, {BLUNDER_THRESHOLD}% blunder threshold")
+    try:
+        data = request.json
+        session_id = data.get('session_id')
+        username = data.get('username', '').strip()
+        game_count = data.get('gameCount', 20)
+        game_types = data.get('gameTypes', ['blitz', 'rapid'])
+        rating_filter = data.get('ratingFilter', 'rated')
+        analysis_depth = data.get('analysisDepth', 'balanced')
+        
+        # Validate input
+        if not session_id or not username:
+            return jsonify({'error': 'Session ID and username are required'}), 400
+        
+        # Map analysis depth to engine think time
+        depth_mapping = {
+            'fast': 0.1,
+            'balanced': 0.2,
+            'deep': 0.5
+        }
+        engine_think_time = depth_mapping.get(analysis_depth, 0.2)
+        
+        # Initialize progress tracker
+        progress_trackers[session_id] = ProgressTracker(session_id, game_count)
+        tracker = progress_trackers[session_id]
+        
+        # Start analysis in background thread
+        def run_analysis():
+            try:
+                # Phase 1: Game fetching with settings
+                tracker.start_phase("fetching_games", f"Fetching {game_count} {', '.join(game_types)} games ({rating_filter})")
+                
+                # Create filter object for get_games.py
+                game_filters = {
+                    'game_count': game_count,
+                    'game_types': game_types,
+                    'rating_filter': rating_filter
+                }
+                
+                # Get filtered games and metadata
+                pgn_content, games_metadata = fetch_games_with_filters(username, game_filters, tracker)
+                
+                if not pgn_content:
+                    tracker.set_error("No games found matching the specified criteria")
+                    return
+                
+                # Phase 2: Engine initialization
+                tracker.start_phase("engine_init", "Initializing Stockfish engine")
+                
+                # Phase 3: Game analysis with new settings
+                tracker.start_phase("analyzing_games", f"Analyzing games with {analysis_depth} depth")
+                
+                # Run analysis with settings
+                results = analyze_games_with_settings(
+                    pgn_content, 
+                    username, 
+                    engine_think_time,
+                    tracker
+                )
+                
+                if results:
+                    # Phase 4: Pattern aggregation and scoring
+                    tracker.start_phase("aggregating", "Calculating blunder patterns and scores")
+                    
+                    # Transform results into new format
+                    final_results = transform_results_for_frontend(results, game_count, games_metadata)
+                    tracker.complete(final_results)
+                else:
+                    tracker.set_error("Analysis failed to produce results")
+                    
+            except Exception as e:
+                logger.error(f"Analysis error for session {session_id}: {str(e)}")
+                tracker.set_error(f"Analysis failed: {str(e)}")
+        
+        # Start background thread
+        thread = Thread(target=run_analysis)
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({
+            'status': 'started',
+            'session_id': session_id,
+            'message': f'Analysis started for {username}'
+        })
+        
+    except Exception as e:
+        logger.error(f"Error starting analysis: {str(e)}")
+        return jsonify({'error': str(e)}), 500
 
-    # Create progress tracker
-    progress_tracker = ProgressTracker(session_id, games_to_analyze=GAMES_TO_FETCH)
-    progress_tracker.update("starting", f"🚀 Starting analysis for {username}...", mark_complete=True)
+def fetch_games_with_filters(username, filters, tracker):
+    """Fetch games using the updated get_games.py with filtering support"""
+    try:
+        # Update progress
+        tracker.update_progress(5, f"Connecting to Chess.com API for {username}")
+        
+        # Build command with correct arguments that get_games.py actually supports
+        cmd = [
+            'python', 'get_games.py',
+            '--username', username,
+            '--num_games', str(filters['game_count'])  # Correct argument name
+        ]
+        
+        # Add rating filter using the correct argument
+        if filters['rating_filter'] == 'rated':
+            cmd.extend(['--filter', 'rated'])
+        elif filters['rating_filter'] == 'unrated':
+            cmd.extend(['--filter', 'unrated'])
+        else:  # 'all' or other values
+            cmd.extend(['--filter', 'both'])
+        
+        # Add game type filters using the correct flags
+        if filters['game_types']:
+            if 'rapid' in filters['game_types']:
+                cmd.append('--rapid')
+            if 'blitz' in filters['game_types']:
+                cmd.append('--blitz')
+            if 'bullet' in filters['game_types']:
+                cmd.append('--bullet')
+            if 'daily' in filters['game_types']:
+                cmd.append('--daily')
+        # If no specific types selected, get_games.py will fetch all types by default
+        
+        tracker.update_progress(10, f"Downloading {filters['game_count']} games...")
+        
+        try:
+            # Run get_games.py - it will create its own PGN file
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+            
+            if result.returncode != 0:
+                # If it failed, try with minimal arguments
+                tracker.update_progress(12, "Retrying with simpler game fetch...")
+                cmd_simple = [
+                    'python', 'get_games.py',
+                    '--username', username,
+                    '--num_games', str(min(filters['game_count'], 20)),  # Limit for safety
+                    '--filter', 'rated'  # Default to rated games
+                ]
+                
+                result = subprocess.run(cmd_simple, capture_output=True, text=True, timeout=120)
+                
+                if result.returncode != 0:
+                    error_msg = result.stderr.strip() or result.stdout.strip() or "Failed to fetch games"
+                    raise Exception(f"Game fetch failed: {error_msg}")
+                    
+        except subprocess.TimeoutExpired:
+            raise Exception("Game fetching timed out")
+        
+        # get_games.py creates its own filename and prints it
+        # Parse the output to find the created filename
+        output_lines = result.stdout.strip().split('\n')
+        created_filename = None
+        
+        for line in output_lines:
+            if "PGN file saved as" in line:
+                # Extract filename from "PGN file saved as 'filename'"
+                parts = line.split("'")
+                if len(parts) >= 2:
+                    created_filename = parts[1]
+                    break
+        
+        if not created_filename:
+            # Try to find any .pgn file that was created recently for this username
+            pattern = f"{username}_last_*_*.pgn"
+            matching_files = glob.glob(pattern)
+            if matching_files:
+                # Get the most recently created file
+                created_filename = max(matching_files, key=os.path.getctime)
+        
+        if not created_filename or not os.path.exists(created_filename):
+            raise Exception("PGN file was not created by get_games.py")
+        
+        # Read the generated PGN file and metadata
+        try:
+            with open(created_filename, 'r', encoding='utf-8') as f:
+                pgn_content = f.read()
+            
+            if not pgn_content.strip():
+                raise Exception("No game data received - the PGN file is empty")
+            
+            # Read games metadata
+            metadata_filename = created_filename.replace('.pgn', '_metadata.json')
+            games_metadata = []
+            
+            if os.path.exists(metadata_filename):
+                try:
+                    with open(metadata_filename, 'r', encoding='utf-8') as f:
+                        games_metadata = json.load(f)
+                except Exception as e:
+                    logger.warning(f"Could not read games metadata: {e}")
+                    games_metadata = []
+            
+            tracker.update_progress(20, f"Successfully downloaded games")
+            return pgn_content, games_metadata
+            
+        finally:
+            # Clean up the created files
+            for filename in [created_filename, created_filename.replace('.pgn', '_metadata.json')]:
+                if os.path.exists(filename):
+                    try:
+                        os.unlink(filename)
+                    except:
+                        pass  # Don't fail if we can't clean up
+                
+    except Exception as e:
+        logger.error(f"Failed to fetch games for {username}: {str(e)}")
+        raise Exception(f"Failed to fetch games: {str(e)}")
 
-    # 1. Fetch the user's games
-    print(f"\n🌐 Step 1: Fetching games from Chess.com API...")
-    fetch_start = time.time()
-    
-    progress_tracker.update("fetching_games", f"🌐 Fetching games from Chess.com API...", mark_complete=False)
-    
-    pgn_filename = fetch_user_games(
-        username=username, 
-        num_games=GAMES_TO_FETCH, 
-        selected_types=[], # Empty list = "all" types
-        rated_filter="rated"
-    )
-    
-    fetch_time = time.time() - fetch_start
-    print(f"✅ Chess.com API fetch completed in {fetch_time:.2f} seconds")
+def analyze_games_with_settings(pgn_content, username, engine_think_time, tracker):
+    """Run game analysis with the specified settings"""
+    try:
+        # Create temporary files
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.pgn', delete=False) as pgn_file:
+            pgn_file.write(pgn_content)
+            pgn_filename = pgn_file.name
+        
+        try:
+            tracker.update_progress(25, "Starting chess engine analysis...")
+            
+            # Build analysis command
+            cmd = [
+                'python', 'analyze_games.py',
+                '--pgn', pgn_filename,
+                '--username', username,
+                '--engine_think_time', str(engine_think_time),
+                '--blunder_threshold', '15'  # Keep current threshold
+            ]
+            
+            # Run analysis
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=300)
+            
+            if result.returncode != 0:
+                error_msg = result.stderr.strip() or "Analysis failed"
+                raise Exception(error_msg)
+            
+            # Parse results from stdout
+            output_lines = result.stdout.strip().split('\n')
+            blunders = []
+            
+            current_blunder = None
+            for line in output_lines:
+                line = line.strip()
+                if not line:
+                    continue
+                    
+                # Look for blunder patterns - fix: check for "-> " (after strip) not " -> "
+                if line.startswith("-> ") and ":" in line:
+                    # Parse blunder line: "-> Category: On move X, description"
+                    parts = line.split("-> ", 1)[1].split(": ", 1)
+                    if len(parts) == 2:
+                        category = parts[0].strip()
+                        details = parts[1].strip()
+                        
+                        # Extract move number
+                        move_number = None
+                        if "move" in details.lower():
+                            match = re.search(r'move (\d+)', details.lower())
+                            if match:
+                                move_number = int(match.group(1))
+                        
+                        blunder = {
+                            'category': category,
+                            'description': details,
+                            'move_number': move_number,
+                            'general_description': get_general_description(category)
+                        }
+                        blunders.append(blunder)
+            
+            tracker.update_progress(90, f"Analysis complete - found {len(blunders)} blunders")
+            
+            return {
+                'blunders': blunders,
+                'username': username,
+                'total_blunders': len(blunders)
+            }
+            
+        finally:
+            # Clean up
+            if os.path.exists(pgn_filename):
+                os.unlink(pgn_filename)
+                
+    except subprocess.TimeoutExpired:
+        raise Exception("Analysis timed out")
+    except Exception as e:
+        raise Exception(f"Analysis failed: {str(e)}")
 
-    if pgn_filename is None:
-        print(f"❌ Failed to fetch games from Chess.com API")
-        progress_tracker.update("error", "❌ Failed to fetch games from Chess.com API")
-        return jsonify({"error": "Could not fetch games from Chess.com API."}), 500
+def transform_results_for_frontend(results, games_analyzed, games_metadata=None):
+    """Transform analysis results into the new frontend format"""
+    try:
+        blunders = results.get('blunders', [])
+        
+        # Format games metadata for frontend
+        games_list = []
+        if games_metadata:
+            for i, game in enumerate(games_metadata, 1):
+                games_list.append({
+                    'number': i,
+                    'white': game.get('white', 'Unknown'),
+                    'black': game.get('black', 'Unknown'),
+                    'date': game.get('date', 'Unknown date'),
+                    'time_class': game.get('time_class', 'unknown'),
+                    'rated': game.get('rated', False),
+                    'url': game.get('url', ''),
+                    'target_player': game.get('target_player', '')
+                })
+        
+        if not blunders:
+            return {
+                'games_analyzed': games_analyzed,
+                'total_blunders': 0,
+                'hero_stat': {
+                    'category': 'No Blunders Found',
+                    'score': 0,
+                    'description': 'Great job! No significant blunders were detected in your games.',
+                    'examples': []
+                },
+                'blunder_breakdown': [],
+                'games_list': games_list
+            }
+        
+        # Group blunders by category
+        grouped = {}
+        for blunder in blunders:
+            category = blunder.get('category', 'Unknown')
+            if category not in grouped:
+                grouped[category] = []
+            grouped[category].append(blunder)
+        
+        # Calculate scores for each category (frequency-based for now)
+        blunder_breakdown = []
+        for category, category_blunders in grouped.items():
+            frequency = len(category_blunders)
+            # Simple scoring: frequency * weight (can be enhanced with win probability drops later)
+            score = frequency * get_category_weight(category)
+            
+            breakdown_item = {
+                'category': category,
+                'score': score,
+                'frequency': frequency,
+                'avg_impact': 15.0,  # Placeholder - can be calculated from actual win probability drops
+                'description': get_general_description(category),
+                'examples': category_blunders[:3]  # First 3 examples
+            }
+            blunder_breakdown.append(breakdown_item)
+        
+        # Sort by score (highest first)
+        blunder_breakdown.sort(key=lambda x: x['score'], reverse=True)
+        
+        # Hero stat is the highest scoring blunder
+        hero_stat = blunder_breakdown[0] if blunder_breakdown else {
+            'category': 'Unknown',
+            'score': 0,
+            'description': 'No blunders detected',
+            'examples': []
+        }
+        
+        return {
+            'games_analyzed': games_analyzed,
+            'total_blunders': len(blunders),
+            'hero_stat': hero_stat,
+            'blunder_breakdown': blunder_breakdown,
+            'games_list': games_list
+        }
+        
+    except Exception as e:
+        logger.error(f"Error transforming results: {str(e)}")
+        return {
+            'games_analyzed': games_analyzed,
+            'total_blunders': 0,
+            'hero_stat': {
+                'category': 'Analysis Error',
+                'score': 0,
+                'description': 'There was an error processing your analysis results.',
+                'examples': []
+            },
+            'blunder_breakdown': [],
+            'games_list': games_list if 'games_list' in locals() else []
+        }
 
-    print(f"📄 PGN file created: {pgn_filename}")
-    
-    # Mark fetching complete
-    progress_tracker.update("fetching_games", f"✅ Fetched games in {fetch_time:.2f}s", mark_complete=True)
+def get_category_weight(category):
+    """Get scoring weight for different blunder categories"""
+    weights = {
+        'Allowed Checkmate': 3.0,
+        'Missed Checkmate': 3.0,
+        'Hanging a Piece': 2.5,
+        'Allowed Fork': 2.0,
+        'Missed Fork': 2.0,
+        'Losing Exchange': 2.0,
+        'Missed Material Gain': 1.8,
+        'Allowed Pin': 1.5,
+        'Missed Pin': 1.5,
+        'Mistake': 1.0
+    }
+    return weights.get(category, 1.0)
 
-    # 2. Analyze all games using our wrapper function
-    print(f"\n🔬 Step 2: Starting game analysis...")
-    analysis_start = time.time()
-    
-    result = analyze_multiple_games(
-        pgn_file_path=pgn_filename,
-        username=username,
-        stockfish_path=STOCKFISH_PATH,
-        blunder_threshold=BLUNDER_THRESHOLD,
-        engine_think_time=ENGINE_THINK_TIME,
-        progress_tracker=progress_tracker
-    )
-    
-    analysis_time = time.time() - analysis_start
-    print(f"✅ Game analysis completed in {analysis_time:.2f} seconds")
-    
-    # 3. Handle errors from the analysis
-    if "error" in result:
-        print(f"❌ Analysis error: {result['error']}")
-        return jsonify(result), 500
-
-    total_time = time.time() - total_start
-    print(f"\n🎯 FINAL RESULTS for {username}:")
-    print(f"   📊 {result['summary']['total_blunders']} blunders across {result['games_analyzed']} games")
-    print(f"   ⏱️  Total request time: {total_time:.2f} seconds")
-    print(f"   📈 Breakdown: API fetch ({fetch_time:.2f}s) + Analysis ({analysis_time:.2f}s)")
-    
-    # 4. Return the successful result as JSON with session ID
-    result["session_id"] = session_id
-    return jsonify(result)
+def get_general_description(category):
+    """Get general educational description for blunder categories"""
+    descriptions = {
+        'Hanging a Piece': 'You left pieces undefended, allowing your opponent to capture them for free. Always check if your pieces are safe after making a move.',
+        'Missed Fork': 'You missed opportunities to attack two or more enemy pieces simultaneously with a single piece, forcing your opponent to lose material.',
+        'Allowed Fork': 'Your move allowed your opponent to attack multiple pieces at once, forcing you to lose material. Look ahead to see if your moves give your opponent tactical opportunities.',
+        'Missed Material Gain': 'You missed chances to win material through captures or tactical sequences. Look for opportunities to win pieces or pawns.',
+        'Losing Exchange': 'You initiated exchanges that lost you material overall. Calculate the value of pieces being traded before making exchanges.',
+        'Missed Pin': 'You missed opportunities to pin enemy pieces, restricting their movement and creating tactical advantages.',
+        'Allowed Pin': 'Your move allowed your opponent to pin one of your pieces, limiting your options and creating weaknesses in your position.',
+        'Allowed Checkmate': 'Your move gave your opponent a forced checkmate sequence. Always check if your moves leave your king vulnerable.',
+        'Missed Checkmate': 'You missed opportunities to deliver checkmate. Look for forcing moves that can lead to mate.',
+        'Mistake': 'This move significantly worsened your position or missed a better alternative. Review the position to understand what went wrong.'
+    }
+    return descriptions.get(category, 'This type of move generally leads to a worse position or missed opportunities.')
 
 @app.route("/api/progress/<session_id>")
 def progress_stream(session_id):
     """Server-Sent Events endpoint for progress updates"""
     def generate():
-        # Create queue for this session
+        # Create queue for this session if it doesn't exist
         with progress_lock:
-            progress_queues[session_id] = queue.Queue(maxsize=50)
+            if session_id not in progress_queues:
+                progress_queues[session_id] = queue.Queue(maxsize=50)
         
         try:
             while True:
@@ -373,7 +724,7 @@ def progress_stream(session_id):
                     yield f"data: {json.dumps(update)}\n\n"
                     
                     # Check if this is completion
-                    if update.get("step") == "complete":
+                    if update.get("step") == "complete" or update.get("step") == "error":
                         break
                         
                 except queue.Empty:
@@ -391,6 +742,10 @@ class ProgressTracker:
     def __init__(self, session_id, games_to_analyze=1):
         self.session_id = session_id
         self.start_time = time.time()
+        
+        # Create progress queue for this session immediately
+        with progress_lock:
+            progress_queues[session_id] = queue.Queue(maxsize=50)
         
         # Time-weighted progress phases with realistic estimates (in seconds)
         # These are based on actual observed performance
@@ -437,16 +792,56 @@ class ProgressTracker:
             time_elapsed
         )
         
-    def complete(self, final_message="Analysis complete!"):
-        """Mark analysis as complete with 100% progress"""
+    def complete(self, results=None):
+        """Mark analysis as complete with results"""
         time_elapsed = time.time() - self.start_time
-        send_progress_update(
-            self.session_id,
-            "complete",
-            final_message,
-            100.0,  # Always 100% on completion
-            time_elapsed
-        )
+        
+        # Send completion update with results
+        with progress_lock:
+            if self.session_id in progress_queues:
+                update = {
+                    "status": "completed",
+                    "message": f"Analysis completed in {time_elapsed:.1f}s",
+                    "percentage": 100.0,
+                    "results": results,
+                    "timestamp": time.time()
+                }
+                try:
+                    progress_queues[self.session_id].put_nowait(update)
+                except queue.Full:
+                    pass
+
+    def set_error(self, error_message):
+        """Mark the analysis as failed with a specific error message"""
+        with progress_lock:
+            if self.session_id in progress_queues:
+                update = {
+                    "status": "error", 
+                    "error": error_message,
+                    "timestamp": time.time()
+                }
+                try:
+                    progress_queues[self.session_id].put_nowait(update)
+                except queue.Full:
+                    pass
+
+    def update_progress(self, percent, message):
+        """Update progress to a specific percentage"""
+        with progress_lock:
+            if self.session_id in progress_queues:
+                update = {
+                    "percentage": percent,
+                    "message": message,
+                    "timestamp": time.time()
+                }
+                try:
+                    progress_queues[self.session_id].put_nowait(update)
+                except queue.Full:
+                    pass
+
+    def start_phase(self, phase_name, message):
+        """Mark a phase as started"""
+        self.update(phase_name, message, mark_complete=False)
 
 if __name__ == '__main__':
     # Make sure to install Flask-Cors: pip install Flask-Cors

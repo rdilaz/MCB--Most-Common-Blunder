@@ -1,344 +1,471 @@
-// Wait for DOM to be loaded
+// Global variables
+let sessionId = null;
+let eventSource = null;
+let isAnalyzing = false;
+
+// DOM Elements
+const usernameInput = document.getElementById('username');
+const analyzeBtn = document.getElementById('analyzeBtn');
+const gameCountSlider = document.getElementById('gameCount');
+const gameCountValue = document.getElementById('gameCountValue');
+const gameTypesSelect = document.getElementById('gameTypes');
+const ratingFilterSelect = document.getElementById('ratingFilter');
+const analysisDepthSelect = document.getElementById('analysisDepth');
+const progressSection = document.getElementById('progressSection');
+const progressBar = document.getElementById('progressBar');
+const progressText = document.getElementById('progressText');
+const progressLog = document.getElementById('progressLog');
+const resultsSection = document.getElementById('resultsSection');
+const heroStat = document.getElementById('heroStat');
+const heroStatTitle = document.getElementById('heroStatTitle');
+const heroStatScore = document.getElementById('heroStatScore');
+const heroStatDescription = document.getElementById('heroStatDescription');
+const heroStatExamples = document.getElementById('heroStatExamples');
+const analysisStats = document.getElementById('analysisStats');
+const blundersList = document.getElementById('blundersList');
+const gamesList = document.getElementById('gamesList');
+
+// Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
-    // Get DOM elements
-    const analysisForm = document.getElementById('analysis-form');
-    const usernameInput = document.getElementById('username-input');
-    const loadingSection = document.getElementById('loading-section');
-    const progressSection = document.getElementById('progress-section');
-    const errorSection = document.getElementById('error-section');
-    const errorMessage = document.getElementById('error-message');
-    const resultsSection = document.getElementById('results-section');
-    const toggleBlundersBtn = document.getElementById('toggle-blunders-btn');
-    const blundersContainer = document.getElementById('blunders-container');
+    initializeEventListeners();
+    updateGameCountDisplay();
+});
 
-    // Progress elements
-    const progressFill = document.getElementById('progress-fill');
-    const progressPercentage = document.getElementById('progress-percentage');
-    const progressTime = document.getElementById('progress-time');
-    const stepIcon = document.getElementById('step-icon');
-    const stepMessage = document.getElementById('step-message');
-    const progressLog = document.getElementById('progress-log');
+function initializeEventListeners() {
+    // Analyze button
+    analyzeBtn.addEventListener('click', handleAnalyzeClick);
+    
+    // Enter key in username input
+    usernameInput.addEventListener('keypress', function(e) {
+        if (e.key === 'Enter' && !isAnalyzing) {
+            handleAnalyzeClick();
+        }
+    });
+    
+    // Game count slider
+    gameCountSlider.addEventListener('input', updateGameCountDisplay);
+    
+    // Settings validation
+    usernameInput.addEventListener('input', validateForm);
+    gameTypesSelect.addEventListener('change', validateForm);
+}
 
-    // State management
-    let isBlundersVisible = false;
-    let progressEventSource = null;
-    let progressStartTime = null;
+function updateGameCountDisplay() {
+    gameCountValue.textContent = gameCountSlider.value;
+}
 
-    // Step icons mapping
-    const stepIcons = {
-        'starting': '🚀',
-        'fetching_games': '🌐',
-        'engine_init': '🔧',
-        'engine_ready': '✅',
-        'reading_pgn': '📖',
-        'analyzing_game': '🎯',
-        'aggregating': '📊',
-        'complete': '🎉',
-        'error': '❌'
+function validateForm() {
+    const username = usernameInput.value.trim();
+    const selectedGameTypes = Array.from(gameTypesSelect.selectedOptions);
+    
+    const isValid = username.length > 0 && selectedGameTypes.length > 0;
+    analyzeBtn.disabled = !isValid || isAnalyzing;
+}
+
+function handleAnalyzeClick() {
+    if (isAnalyzing) return;
+    
+    const username = usernameInput.value.trim();
+    if (!username) {
+        alert('Please enter a Chess.com username');
+        return;
+    }
+    
+    const selectedGameTypes = Array.from(gameTypesSelect.selectedOptions).map(option => option.value);
+    if (selectedGameTypes.length === 0) {
+        alert('Please select at least one game type');
+        return;
+    }
+    
+    const analysisSettings = {
+        username: username,
+        gameCount: parseInt(gameCountSlider.value),
+        gameTypes: selectedGameTypes,
+        ratingFilter: ratingFilterSelect.value,
+        analysisDepth: analysisDepthSelect.value
     };
+    
+    startAnalysis(analysisSettings);
+}
 
-    // Form submission handler
-    analysisForm.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const username = usernameInput.value.trim();
-        if (!username) {
-            showError('Please enter a username');
-            return;
+function startAnalysis(settings) {
+    isAnalyzing = true;
+    sessionId = generateSessionId();
+    
+    // Update UI state
+    updateAnalyzeButton(true);
+    showProgressSection();
+    hideResultsSection();
+    resetProgress();
+    
+    // Log analysis start
+    addProgressLog(`🚀 Starting analysis for ${settings.username}`);
+    addProgressLog(`⚙️ Settings: ${settings.gameCount} games, ${settings.gameTypes.join(', ')}, ${settings.ratingFilter}, ${settings.analysisDepth} depth`);
+    
+    // Start server-sent events for progress tracking
+    startProgressTracking();
+    
+    // Send analysis request
+    fetch('/api/analyze', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            session_id: sessionId,
+            ...settings
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
-
-        await analyzePlayer(username);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Analysis started:', data);
+    })
+    .catch(error => {
+        console.error('Analysis failed:', error);
+        handleAnalysisError(error.message);
     });
+}
 
-    // Toggle blunders visibility
-    toggleBlundersBtn.addEventListener('click', function() {
-        isBlundersVisible = !isBlundersVisible;
-        
-        if (isBlundersVisible) {
-            blundersContainer.style.display = 'block';
-            toggleBlundersBtn.textContent = 'Hide Individual Blunders';
-        } else {
-            blundersContainer.style.display = 'none';
-            toggleBlundersBtn.textContent = 'Show All Individual Blunders';
-        }
-    });
-
-    // Main analysis function with real-time progress
-    async function analyzePlayer(username) {
-        // Generate unique session ID
-        const sessionId = `${username}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-        
-        showProgress();
-        hideError();
-        hideResults();
-        
-        // Start progress tracking immediately
-        startProgressTracking(sessionId);
-
+function startProgressTracking() {
+    if (eventSource) {
+        eventSource.close();
+    }
+    
+    eventSource = new EventSource(`/api/progress/${sessionId}`);
+    
+    eventSource.onmessage = function(event) {
         try {
-            // Start the analysis request with session ID
-            const response = await fetch(`/api/analyze/${username}?session_id=${sessionId}`);
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.error || 'Analysis failed');
-            }
-
-            // Wait a moment to show completion, then display results
-            setTimeout(() => {
-                hideProgress();
-                displayResults(data);
-            }, 1500);
-            
-        } catch (error) {
-            console.error('Analysis error:', error);
-            hideProgress();
-            showError(error.message || 'Failed to analyze games. Please try again.');
+            const data = JSON.parse(event.data);
+            handleProgressUpdate(data);
+        } catch (e) {
+            console.error('Failed to parse progress data:', e);
         }
-    }
-
-    // Progress tracking functions
-    function showProgress() {
-        progressSection.style.display = 'block';
-        progressStartTime = Date.now();
-        
-        // Reset progress UI
-        updateProgress(0, 'Starting analysis...', 'starting');
-        clearProgressLog();
-    }
-
-    function hideProgress() {
-        progressSection.style.display = 'none';
-        if (progressEventSource) {
-            progressEventSource.close();
-            progressEventSource = null;
+    };
+    
+    eventSource.onerror = function(event) {
+        console.error('EventSource error:', event);
+        if (eventSource.readyState === EventSource.CLOSED) {
+            console.log('EventSource connection closed');
         }
-    }
+    };
+}
 
-    function startProgressTracking(sessionId) {
-        if (progressEventSource) {
-            progressEventSource.close();
+function handleProgressUpdate(data) {
+    console.log('Progress update:', data);
+    
+    // Handle heartbeat
+    if (data.heartbeat) {
+        return;
+    }
+    
+    // Update progress bar
+    if (data.percentage !== undefined) {
+        updateProgress(data.percentage);
+    }
+    
+    // Add progress log entry
+    if (data.message) {
+        addProgressLog(data.message);
+    }
+    
+    // Handle completion
+    if (data.status === 'completed' && data.results) {
+        handleAnalysisComplete(data.results);
+    } else if (data.status === 'error') {
+        handleAnalysisError(data.error || 'Unknown error occurred');
+    }
+}
+
+function handleAnalysisComplete(results) {
+    console.log('Analysis completed:', results);
+    
+    isAnalyzing = false;
+    updateAnalyzeButton(false);
+    
+    // Close progress tracking
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+    
+    // Update progress to 100%
+    updateProgress(100);
+    addProgressLog('✅ Analysis completed!');
+    
+    // Show results
+    setTimeout(() => {
+        displayResults(results);
+    }, 1000);
+}
+
+function handleAnalysisError(errorMessage) {
+    console.error('Analysis error:', errorMessage);
+    
+    isAnalyzing = false;
+    updateAnalyzeButton(false);
+    
+    if (eventSource) {
+        eventSource.close();
+        eventSource = null;
+    }
+    
+    addProgressLog(`❌ Error: ${errorMessage}`);
+    alert(`Analysis failed: ${errorMessage}`);
+}
+
+function displayResults(results) {
+    console.log('Displaying results:', results);
+    
+    // Hide progress and show results
+    hideProgressSection();
+    showResultsSection();
+    
+    // Update analysis stats
+    analysisStats.textContent = `Analyzed ${results.games_analyzed || 0} games • Found ${results.total_blunders || 0} blunders`;
+    
+    if (results.hero_stat) {
+        displayHeroStat(results.hero_stat);
+    }
+    
+    if (results.games_list) {
+        displayGamesList(results.games_list);
+    }
+    
+    if (results.blunder_breakdown) {
+        displayBlunderBreakdown(results.blunder_breakdown);
+    } else if (results.blunders) {
+        // Fallback for single-game format
+        displayLegacyBlunders(results.blunders);
+    }
+}
+
+function displayHeroStat(heroStat) {
+    heroStatTitle.textContent = `🥇 #1 Most Common: ${heroStat.category}`;
+    heroStatScore.textContent = heroStat.score ? heroStat.score.toFixed(1) : '--';
+    heroStatDescription.textContent = heroStat.description || heroStat.general_description || 'No description available';
+    
+    // Display examples if available
+    if (heroStat.examples && heroStat.examples.length > 0) {
+        const examplesHtml = heroStat.examples.slice(0, 3).map(example => `
+            <div class="hero-stat-example">
+                🎯 Game vs. ${example.opponent || 'Unknown'}: Move ${example.move_number} (${example.impact || 'impact unknown'})
+            </div>
+        `).join('');
+        heroStatExamples.innerHTML = examplesHtml;
+    } else {
+        heroStatExamples.innerHTML = '<div class="hero-stat-example">🎯 Examples will appear here with more games analyzed</div>';
+    }
+}
+
+function displayGamesList(games) {
+    if (!games || games.length === 0) {
+        gamesList.innerHTML = '<div class="no-games">No games data available</div>';
+        return;
+    }
+    
+    const gamesHtml = games.map(game => {
+        // Determine which player was analyzed (highlight in bold)
+        const targetPlayer = game.target_player;
+        const whiteDisplay = game.white === targetPlayer ? `<strong>${game.white}</strong>` : game.white;
+        const blackDisplay = game.black === targetPlayer ? `<strong>${game.black}</strong>` : game.black;
+        
+        // Format game type and rating
+        const gameTypeIcon = getGameTypeIcon(game.time_class);
+        const ratingBadge = game.rated ? '🏆 Rated' : '🎮 Unrated';
+        
+        return `
+            <div class="game-item">
+                <div class="game-info">
+                    <div class="game-players">
+                        ${whiteDisplay} vs ${blackDisplay}
+                    </div>
+                    <div class="game-details">
+                        <span class="game-meta">📅 ${game.date}</span>
+                        <span class="game-meta">${gameTypeIcon} ${game.time_class}</span>
+                        <span class="game-meta">${ratingBadge}</span>
+                    </div>
+                </div>
+                ${game.url ? `
+                    <a href="${game.url}" target="_blank" class="game-link">
+                        🔗 View Game
+                    </a>
+                ` : '<span class="game-link-disabled">No link</span>'}
+            </div>
+        `;
+    }).join('');
+    
+    gamesList.innerHTML = gamesHtml;
+}
+
+function getGameTypeIcon(timeClass) {
+    switch(timeClass) {
+        case 'bullet': return '🔥';
+        case 'blitz': return '⚡';
+        case 'rapid': return '🎯';
+        case 'classical': return '🏰';
+        case 'daily': return '📬';
+        default: return '🎮';
+    }
+}
+
+function displayBlunderBreakdown(breakdown) {
+    if (!breakdown || breakdown.length === 0) {
+        blundersList.innerHTML = '<div class="no-blunders">No blunders found! Great job! 🎉</div>';
+        return;
+    }
+    
+    const blundersHtml = breakdown.map((blunder, index) => {
+        const rank = index + 1;
+        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+        
+        return `
+            <div class="blunder-item">
+                <div class="blunder-item-header">
+                    <div class="blunder-item-title">${medal} ${blunder.category}</div>
+                    <div class="blunder-item-score">${blunder.score ? blunder.score.toFixed(1) : '--'}</div>
+                </div>
+                <div class="blunder-item-description">
+                    ${blunder.description || blunder.general_description || 'No description available'}
+                </div>
+                <div class="blunder-item-stats">
+                    📊 ${blunder.frequency || 0} occurrences • 📉 ${blunder.avg_impact || 0}% avg impact
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    blundersList.innerHTML = blundersHtml;
+}
+
+function displayLegacyBlunders(blunders) {
+    // Fallback for single-game analysis format
+    if (!blunders || blunders.length === 0) {
+        blundersList.innerHTML = '<div class="no-blunders">No blunders found! Great job! 🎉</div>';
+        return;
+    }
+    
+    // Group blunders by category for legacy format
+    const grouped = {};
+    blunders.forEach(blunder => {
+        const category = blunder.category || 'Unknown';
+        if (!grouped[category]) {
+            grouped[category] = [];
         }
-
-        // Add a small delay to ensure the backend is ready
-        setTimeout(() => {
-            progressEventSource = new EventSource(`/api/progress/${sessionId}`);
-            
-            progressEventSource.onmessage = function(event) {
-                try {
-                    const data = JSON.parse(event.data);
-                    
-                    if (data.heartbeat) {
-                        return; // Ignore heartbeat messages
-                    }
-                    
-                    handleProgressUpdate(data);
-                    
-                } catch (error) {
-                    console.error('Error parsing progress data:', error);
-                }
-            };
-
-            progressEventSource.onerror = function(event) {
-                console.error('Progress stream error:', event);
-                // Don't close on error - let it reconnect automatically
-            };
-        }, 100);
-    }
-
-    function handleProgressUpdate(data) {
-        const { step, message, progress, time_elapsed } = data;
-        
-        // Update progress bar and message
-        updateProgress(progress || 0, message, step);
-        
-        // Add to progress log
-        addProgressLogEntry(message, time_elapsed);
-        
-        // Handle completion
-        if (step === 'complete') {
-            setTimeout(() => {
-                hideProgress();
-            }, 2000); // Show completion for 2 seconds
-        }
-    }
-
-    function updateProgress(percentage, message, step) {
-        // Update progress bar
-        progressFill.style.width = `${percentage}%`;
-        progressPercentage.textContent = `${Math.round(percentage)}%`;
-        
-        // Update time
-        if (progressStartTime) {
-            const elapsed = (Date.now() - progressStartTime) / 1000;
-            progressTime.textContent = `${elapsed.toFixed(1)}s elapsed`;
-        }
-        
-        // Update step icon and message
-        const icon = stepIcons[step] || '⏳';
-        stepIcon.textContent = icon;
-        stepIcon.className = `step-icon ${step}`;
-        stepMessage.textContent = message;
-    }
-
-    function addProgressLogEntry(message, timeElapsed) {
-        const entry = document.createElement('div');
-        entry.className = 'progress-log-entry';
-        entry.textContent = `[${timeElapsed ? timeElapsed.toFixed(1) + 's' : 'now'}] ${message}`;
-        
-        progressLog.appendChild(entry);
-        
-        // Auto-scroll to bottom
-        progressLog.scrollTop = progressLog.scrollHeight;
-        
-        // Limit log entries to prevent overflow
-        const entries = progressLog.querySelectorAll('.progress-log-entry');
-        if (entries.length > 20) {
-            entries[0].remove();
-        }
-    }
-
-    function clearProgressLog() {
-        progressLog.innerHTML = '';
-    }
-
-    // Display results
-    function displayResults(data) {
-        const { username, games_analyzed, summary, blunders } = data;
-
-        // Update player name
-        document.getElementById('player-name').textContent = username;
-
-        // Update statistics
-        document.getElementById('games-analyzed').textContent = games_analyzed;
-        document.getElementById('total-blunders').textContent = summary.total_blunders;
-
-        if (summary.total_blunders === 0) {
-            // Handle case with no blunders
-            displayNoBlunders(username);
-        } else {
-            // Display most common blunder
-            displayMostCommonBlunder(summary.most_common_blunder);
-            
-            // Display category breakdown
-            displayCategoryBreakdown(summary.category_breakdown);
-            
-            // Display individual blunders
-            displayIndividualBlunders(blunders);
-        }
-
-        showResults();
-    }
-
-    // Display most common blunder
-    function displayMostCommonBlunder(mostCommon) {
-        document.getElementById('most-common-category').textContent = mostCommon.category;
-        document.getElementById('most-common-percentage').textContent = `${mostCommon.percentage}%`;
-        document.getElementById('most-common-example').textContent = mostCommon.general_description;
-    }
-
-    // Display category breakdown
-    function displayCategoryBreakdown(categoryBreakdown) {
-        const categoryList = document.getElementById('category-list');
-        categoryList.innerHTML = '';
-
-        // Sort categories by count (descending)
-        const sortedCategories = Object.entries(categoryBreakdown)
-            .sort(([,a], [,b]) => b - a);
-
-        sortedCategories.forEach(([category, count]) => {
-            const categoryItem = document.createElement('div');
-            categoryItem.className = 'category-item';
-            
-            categoryItem.innerHTML = `
-                <span class="category-name">${category}</span>
-                <span class="category-count">${count}</span>
-            `;
-            
-            categoryList.appendChild(categoryItem);
-        });
-    }
-
-    // Display individual blunders
-    function displayIndividualBlunders(blunders) {
-        const cardsContainer = document.getElementById('blunder-cards-container');
-        cardsContainer.innerHTML = '';
-
-        blunders.forEach((blunder, index) => {
-            const card = document.createElement('div');
-            card.className = 'blunder-card';
-            
-            card.innerHTML = `
-                <h4>${blunder.category}</h4>
-                <p><strong>Move ${blunder.move_number}:</strong> ${blunder.description}</p>
-                ${blunder.punishing_move ? `<p><strong>Punishing Move:</strong> Available</p>` : ''}
-            `;
-            
-            cardsContainer.appendChild(card);
-        });
-
-        // Update toggle button text
-        toggleBlundersBtn.textContent = `Show All Individual Blunders (${blunders.length})`;
-    }
-
-    // Display no blunders case
-    function displayNoBlunders(username) {
-        document.getElementById('most-common-category').textContent = 'No Blunders Found! 🎉';
-        document.getElementById('most-common-percentage').textContent = '0%';
-        document.getElementById('most-common-example').textContent = `Great job, ${username}! You played very well in the analyzed games.`;
-        
-        // Hide category breakdown and toggle section
-        document.querySelector('.category-breakdown').style.display = 'none';
-        document.querySelector('.toggle-section').style.display = 'none';
-    }
-
-    // UI State Management Functions
-    function showLoading() {
-        loadingSection.style.display = 'block';
-    }
-
-    function hideLoading() {
-        loadingSection.style.display = 'none';
-    }
-
-    function showError(message) {
-        errorMessage.textContent = message;
-        errorSection.style.display = 'block';
-    }
-
-    function hideError() {
-        errorSection.style.display = 'none';
-    }
-
-    function showResults() {
-        resultsSection.style.display = 'block';
-    }
-
-    function hideResults() {
-        resultsSection.style.display = 'none';
-        // Reset blunders visibility state
-        isBlundersVisible = false;
-        blundersContainer.style.display = 'none';
-        
-        // Show category breakdown and toggle section (in case they were hidden)
-        const categoryBreakdown = document.querySelector('.category-breakdown');
-        const toggleSection = document.querySelector('.toggle-section');
-        if (categoryBreakdown) categoryBreakdown.style.display = 'block';
-        if (toggleSection) toggleSection.style.display = 'block';
-    }
-
-    // Helper function to capitalize first letter
-    function capitalize(str) {
-        return str.charAt(0).toUpperCase() + str.slice(1);
-    }
-
-    // Cleanup function for when page is unloaded
-    window.addEventListener('beforeunload', function() {
-        if (progressEventSource) {
-            progressEventSource.close();
-        }
+        grouped[category].push(blunder);
     });
+    
+    // Display most common as hero stat
+    const categories = Object.keys(grouped);
+    if (categories.length > 0) {
+        const mostCommon = categories.reduce((a, b) => 
+            grouped[a].length > grouped[b].length ? a : b
+        );
+        
+        heroStatTitle.textContent = `🥇 Most Common: ${mostCommon}`;
+        heroStatScore.textContent = grouped[mostCommon].length;
+        
+        // Use the general description from blunder categories
+        const firstBlunder = grouped[mostCommon][0];
+        heroStatDescription.textContent = firstBlunder.general_description || firstBlunder.description || 'No description available';
+        
+        // Show examples
+        const examplesHtml = grouped[mostCommon].slice(0, 3).map(blunder => `
+            <div class="hero-stat-example">
+                🎯 Move ${blunder.move_number}: ${blunder.description}
+            </div>
+        `).join('');
+        heroStatExamples.innerHTML = examplesHtml;
+    }
+    
+    // Display all categories
+    const blundersHtml = categories.map((category, index) => {
+        const count = grouped[category].length;
+        const rank = index + 1;
+        const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+        
+        return `
+            <div class="blunder-item">
+                <div class="blunder-item-header">
+                    <div class="blunder-item-title">${medal} ${category}</div>
+                    <div class="blunder-item-score">${count}</div>
+                </div>
+                <div class="blunder-item-description">
+                    Found ${count} instance${count !== 1 ? 's' : ''} of this blunder type
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    blundersList.innerHTML = blundersHtml;
+}
 
-    // Auto-focus on username input
-    usernameInput.focus();
+// UI Helper Functions
+function updateAnalyzeButton(analyzing) {
+    const btnText = analyzeBtn.querySelector('.btn-text');
+    const btnLoader = analyzeBtn.querySelector('.btn-loader');
+    
+    if (analyzing) {
+        btnText.classList.add('hidden');
+        btnLoader.classList.remove('hidden');
+        analyzeBtn.disabled = true;
+    } else {
+        btnText.classList.remove('hidden');
+        btnLoader.classList.add('hidden');
+        analyzeBtn.disabled = false;
+    }
+}
+
+function showProgressSection() {
+    progressSection.classList.remove('hidden');
+}
+
+function hideProgressSection() {
+    progressSection.classList.add('hidden');
+}
+
+function showResultsSection() {
+    resultsSection.classList.remove('hidden');
+}
+
+function hideResultsSection() {
+    resultsSection.classList.add('hidden');
+}
+
+function resetProgress() {
+    updateProgress(0);
+    progressLog.innerHTML = '';
+}
+
+function updateProgress(percentage) {
+    progressBar.style.width = `${percentage}%`;
+    progressText.textContent = `${Math.round(percentage)}%`;
+}
+
+function addProgressLog(message) {
+    const timestamp = new Date().toLocaleTimeString();
+    const logEntry = document.createElement('div');
+    logEntry.className = 'progress-log-entry';
+    logEntry.textContent = `[${timestamp}] ${message}`;
+    
+    progressLog.appendChild(logEntry);
+    progressLog.scrollTop = progressLog.scrollHeight;
+}
+
+// Utility Functions
+function generateSessionId() {
+    return Date.now().toString(36) + Math.random().toString(36).substr(2, 5);
+}
+
+// Error Handling
+window.addEventListener('error', function(event) {
+    console.error('Global error:', event.error);
+});
+
+window.addEventListener('unhandledrejection', function(event) {
+    console.error('Unhandled promise rejection:', event.reason);
 });
