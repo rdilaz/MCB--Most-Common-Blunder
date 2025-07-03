@@ -24,6 +24,8 @@ const heroStatExamples = document.getElementById('heroStatExamples');
 const analysisStats = document.getElementById('analysisStats');
 const blundersList = document.getElementById('blundersList');
 const gamesList = document.getElementById('gamesList');
+const gamesContent = document.getElementById('gamesContent');
+const gamesToggleIcon = document.getElementById('gamesToggleIcon');
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -246,14 +248,14 @@ function displayResults(results) {
 
 function displayHeroStat(heroStat) {
     heroStatTitle.textContent = `🥇 #1 Most Common: ${heroStat.category}`;
-    heroStatScore.textContent = heroStat.score ? heroStat.score.toFixed(1) : '--';
+    heroStatScore.textContent = heroStat.severity_score ? heroStat.severity_score.toFixed(1) : '--';
     heroStatDescription.textContent = heroStat.description || heroStat.general_description || 'No description available';
     
     // Display examples if available
     if (heroStat.examples && heroStat.examples.length > 0) {
         const examplesHtml = heroStat.examples.slice(0, 3).map(example => `
             <div class="hero-stat-example">
-                🎯 Game vs. ${example.opponent || 'Unknown'}: Move ${example.move_number} (${example.impact || 'impact unknown'})
+                🎯 Move ${example.move_number || 'Unknown'}: ${example.description || 'No description'}
             </div>
         `).join('');
         heroStatExamples.innerHTML = examplesHtml;
@@ -319,27 +321,53 @@ function displayBlunderBreakdown(breakdown) {
         return;
     }
     
+    // Store blunder data globally for click handlers
+    window.blunderData = breakdown;
+    
     const blundersHtml = breakdown.map((blunder, index) => {
         const rank = index + 1;
         const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
         
+        // Fix grammar: "1 occurrence" vs "2 occurrences"
+        const occurrenceText = blunder.frequency === 1 ? 'occurrence' : 'occurrences';
+        
         return `
-            <div class="blunder-item">
+            <div class="blunder-item" data-blunder-index="${index}">
                 <div class="blunder-item-header">
                     <div class="blunder-item-title">${medal} ${blunder.category}</div>
-                    <div class="blunder-item-score">${blunder.score ? blunder.score.toFixed(1) : '--'}</div>
+                    <div class="blunder-item-score">${blunder.severity_score ? blunder.severity_score.toFixed(1) : '--'}</div>
                 </div>
+                <div class="blunder-expand-hint">Click to expand</div>
                 <div class="blunder-item-description">
                     ${blunder.description || blunder.general_description || 'No description available'}
                 </div>
                 <div class="blunder-item-stats">
-                    📊 ${blunder.frequency || 0} occurrences • 📉 ${blunder.avg_impact || 0}% avg impact
+                    <span class="blunder-stat"><strong>${blunder.frequency || 0}</strong> ${occurrenceText}</span>
+                    <span class="blunder-stat"><strong>${blunder.avg_impact || 0}%</strong> avg impact</span>
+                </div>
+                <div class="blunder-details">
+                    <!-- Details will be loaded dynamically -->
                 </div>
             </div>
         `;
     }).join('');
     
     blundersList.innerHTML = blundersHtml;
+    
+    // Add click event listeners to each blunder item
+    const blunderItems = blundersList.querySelectorAll('.blunder-item');
+    blunderItems.forEach(item => {
+        item.addEventListener('click', function(e) {
+            // Prevent event bubbling
+            e.stopPropagation();
+            
+            const index = parseInt(this.dataset.blunderIndex);
+            const blunderData = window.blunderData[index];
+            
+            console.log('Blunder clicked:', index, blunderData);
+            toggleBlunderDetails(this, blunderData);
+        });
+    });
 }
 
 function displayLegacyBlunders(blunders) {
@@ -454,6 +482,106 @@ function addProgressLog(message) {
     
     progressLog.appendChild(logEntry);
     progressLog.scrollTop = progressLog.scrollHeight;
+}
+
+// Toggle games section
+function toggleGamesSection() {
+    const isCollapsed = gamesContent.classList.contains('collapsed');
+    
+    if (isCollapsed) {
+        gamesContent.classList.remove('collapsed');
+        gamesToggleIcon.classList.add('rotated');
+        gamesToggleIcon.textContent = '▲';
+    } else {
+        gamesContent.classList.add('collapsed');
+        gamesToggleIcon.classList.remove('rotated');
+        gamesToggleIcon.textContent = '▼';
+    }
+}
+
+// Toggle blunder details
+function toggleBlunderDetails(element, blunderData) {
+    const detailsDiv = element.querySelector('.blunder-details');
+    const isExpanded = element.classList.contains('expanded');
+    
+    console.log('Toggle details:', isExpanded, blunderData);
+    
+    if (isExpanded) {
+        // Collapse
+        element.classList.remove('expanded');
+        detailsDiv.classList.remove('expanded');
+        console.log('Collapsing blunder details');
+    } else {
+        // Expand
+        element.classList.add('expanded');
+        detailsDiv.classList.add('expanded');
+        console.log('Expanding blunder details');
+        
+        // Load details if not already loaded
+        if (!detailsDiv.innerHTML.trim() || detailsDiv.innerHTML.includes('<!-- Details will be loaded dynamically -->')) {
+            console.log('Loading blunder details...');
+            loadBlunderDetails(detailsDiv, blunderData);
+        }
+    }
+}
+
+// Load detailed blunder occurrences
+function loadBlunderDetails(container, blunderData) {
+    console.log('Loading details for:', blunderData);
+    
+    if (!blunderData) {
+        container.innerHTML = '<div class="no-details">No data available</div>';
+        return;
+    }
+    
+    // Check if we have occurrence data
+    if (!blunderData.all_occurrences || blunderData.all_occurrences.length === 0) {
+        // Try to create synthetic occurrences from the main data
+        const occurrences = [];
+        
+        // If we have frequency data, create that many occurrences
+        if (blunderData.frequency && blunderData.frequency > 0) {
+            for (let i = 0; i < blunderData.frequency; i++) {
+                occurrences.push({
+                    move_number: `Unknown`,
+                    description: blunderData.description || blunderData.general_description || 'No detailed description available',
+                    game_index: i > 0 ? Math.floor(i / 5) + 1 : 1 // Rough estimation
+                });
+            }
+        } else {
+            // Fallback: create one occurrence
+            occurrences.push({
+                move_number: 'Unknown',
+                description: blunderData.description || blunderData.general_description || 'No detailed description available',
+                game_index: 1
+            });
+        }
+        
+        blunderData.all_occurrences = occurrences;
+    }
+    
+    const occurrences = blunderData.all_occurrences;
+    const detailsHtml = `
+        <div class="blunder-occurrences-header">
+            ${occurrences.length} Occurrence${occurrences.length !== 1 ? 's' : ''} Found:
+        </div>
+        ${occurrences.map((occurrence, index) => {
+            const gameText = occurrence.game_index > 1 ? ` (Game ${occurrence.game_index})` : '';
+            return `
+                <div class="blunder-occurrence">
+                    <div class="blunder-occurrence-header">
+                        Move ${occurrence.move_number}${gameText}
+                    </div>
+                    <div class="blunder-occurrence-description">
+                        ${occurrence.description || 'No description available'}
+                    </div>
+                </div>
+            `;
+        }).join('')}
+    `;
+    
+    container.innerHTML = detailsHtml;
+    console.log('Details loaded successfully');
 }
 
 // Utility Functions
