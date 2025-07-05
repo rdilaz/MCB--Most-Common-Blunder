@@ -262,12 +262,15 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
             if debug_mode: print(f"[DEBUG] Losing exchange detected with SEE value: {see_value}") # debug output
             return {"category": "Losing Exchange", "move_number": actual_move_number, "description": description, "punishing_move": None} # return blunder dict
     
-    # Check for hanging pieces using SEE
+    # Check for hanging pieces using improved SEE logic
     for square in chess.SQUARES: # iterate over all squares
         piece = board_after.piece_at(square) # get piece at square
         if piece and piece.color == turn_color: # check if its player's piece 
-            attackers = board_after.attackers(not turn_color, square) # get the attackers of that square
+            attackers = board_after.attackers(not turn_color, square) # get attackers of that square
             if attackers: # if there are attackers
+                # Also check if the piece has any defenders
+                defenders = board_after.attackers(turn_color, square) # get defenders of that square
+                
                 lva_square = min(attackers, key=lambda s: PIECE_VALUES.get(board_after.piece_at(s).piece_type, 0)) # find least valuable attacker
                 lva_piece = board_after.piece_at(lva_square) # get lva piece
                 if not lva_piece: continue # safety, if no lva piece, continue
@@ -279,15 +282,20 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
                 piece_value = PIECE_VALUES.get(piece.piece_type, 0) # get value of piece
                 see_value = see(board_after, capture_move) # calculate static exchange evaluation
                 
-                if see_value >= piece_value - 50: # if capture is worth more than 50 points less than piece value
+                # IMPROVED LOGIC: A piece is truly hanging if:
+                # 1. SEE value is positive (capturing wins material)
+                # 2. SEE value is close to piece value (not well defended)
+                # 3. Or if SEE shows clear material gain (>100 centipawns)
+                if see_value > 100 and see_value >= piece_value * 0.7: # if capture wins significant material (>1 pawn) and recovers most of piece value
                     piece_name = PIECE_NAMES.get(piece.piece_type, "piece") # get name of piece
                     description = f"your move {move_played_san} left your {piece_name} on {chess.square_name(square)} undefended." # create description
                     if debug_mode: 
                         print(f"[DEBUG] Hanging piece detected:")
                         print(f"[DEBUG]   Move played: {move_played_san}")
                         print(f"[DEBUG]   Hanging piece: {piece_name} on {chess.square_name(square)}")
-                        print(f"[DEBUG]   SEE value: {see_value}")
-                        print(f"[DEBUG]   Note: This might be acceptable if it's the best move")
+                        print(f"[DEBUG]   Attackers: {len(attackers)}, Defenders: {len(defenders)}")
+                        print(f"[DEBUG]   SEE value: {see_value}, Piece value: {piece_value}")
+                        print(f"[DEBUG]   Threshold: SEE > 100 and SEE >= {piece_value * 0.7}")
                     return {"category": "Hanging a Piece", "move_number": actual_move_number, "description": description, "punishing_move": capture_move} # return blunder dict
     
     return None
