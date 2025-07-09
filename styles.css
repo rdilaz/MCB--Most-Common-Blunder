@@ -464,35 +464,9 @@ body {
     text-align: left;
 }
 
-/* Games Analyzed Section */
-.games-analyzed {
-    margin: 30px 0;
-}
 
-.games-section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    cursor: pointer;
-    padding: 12px 16px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    transition: all 0.3s ease;
-    margin-bottom: 16px;
-}
 
-.games-section-header:hover {
-    background: rgba(255, 255, 255, 0.15);
-    transform: translateY(-1px);
-}
-
-.games-analyzed h4 {
-    font-size: 1.3rem;
-    font-weight: 600;
-    color: #2d3748;
-    margin: 0;
-}
-
+/* Common toggle icon styles */
 .toggle-icon {
     font-size: 1.2rem;
     color: #4299e1;
@@ -501,120 +475,6 @@ body {
 
 .toggle-icon.rotated {
     transform: rotate(180deg);
-}
-
-.games-content {
-    overflow: hidden;
-    transition: max-height 0.3s ease, opacity 0.3s ease;
-    max-height: 1000px;
-    opacity: 1;
-}
-
-/* Fix scrolling for games list when it has many items */
-.games-list {
-    display: grid;
-    gap: 12px;
-    max-height: 400px;  /* Limit height to show ~6-7 games */
-    overflow-y: auto;   /* Enable vertical scrolling */
-    padding-right: 8px; /* Space for scrollbar */
-}
-
-.games-content.collapsed {
-    max-height: 0;
-    opacity: 0;
-    margin-bottom: 0;
-}
-
-.games-analyzed-subtitle {
-    color: #718096;
-    font-size: 0.95rem;
-    margin-bottom: 20px;
-    margin-top: 0;
-}
-
-/* Removed duplicate - moved above with scrolling fix */
-
-.game-item {
-    background: #f8fafc;
-    border-radius: 10px;
-    padding: 16px;
-    border-left: 4px solid #4299e1;
-    transition: all 0.3s ease;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-}
-
-.game-item:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.1);
-    background: #edf2f7;
-}
-
-.game-info {
-    flex: 1;
-}
-
-.game-players {
-    font-weight: 600;
-    color: #2d3748;
-    margin-bottom: 4px;
-}
-
-.game-details {
-    font-size: 0.9rem;
-    color: #718096;
-    display: flex;
-    gap: 12px;
-    flex-wrap: wrap;
-}
-
-.game-meta {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-.game-link {
-    background: #4299e1;
-    color: white;
-    text-decoration: none;
-    padding: 8px 16px;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    transition: all 0.3s ease;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-
-.game-link:hover {
-    background: #3182ce;
-    transform: translateY(-1px);
-}
-
-.game-link:active {
-    transform: translateY(0);
-}
-
-/* Responsive for games list */
-@media (max-width: 768px) {
-    .game-item {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-    }
-    
-    .game-details {
-        flex-direction: column;
-        gap: 6px;
-    }
-    
-    .game-link {
-        align-self: stretch;
-        justify-content: center;
-    }
 }
 
 /* Games by Blunders Section */
@@ -673,6 +533,9 @@ body {
     display: flex;
     flex-direction: column;
     gap: 16px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 8px;
 }
 
 .game-blunder-item {
@@ -861,6 +724,9 @@ body {
 .blunders-list {
     display: grid;
     gap: 15px;
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 8px;
 }
 
 .blunder-item {
@@ -989,7 +855,7 @@ body {
 }
 
 .blunder-details:not(.collapsed) {
-    max-height: 600px;
+    max-height: 400px;
     padding: 20px 0 10px 0;
     opacity: 1;
     border-top: 1px solid rgba(56, 178, 172, 0.2);
@@ -1122,6 +988,26 @@ body {
 
 .text-center {
     text-align: center;
+}
+
+/* Win Probability Drop Indicator */
+.win-prob-drop {
+    background: linear-gradient(135deg, #e53e3e, #c53030);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-left: 8px;
+    box-shadow: 0 2px 4px rgba(229, 62, 62, 0.3);
+    display: inline-block;
+    white-space: nowrap;
+}
+
+.win-prob-drop:hover {
+    background: linear-gradient(135deg, #c53030, #9c1f1f);
+    transform: translateY(-1px);
+    box-shadow: 0 3px 6px rgba(229, 62, 62, 0.4);
 }
 
 /* Footer */

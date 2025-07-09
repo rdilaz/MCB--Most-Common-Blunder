@@ -263,12 +263,13 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
             return {"category": "Losing Exchange", "move_number": actual_move_number, "description": description, "punishing_move": None} # return blunder dict
     
     # Check for hanging pieces using improved SEE logic
+    hanging_pieces = [] # list to store hanging pieces with their tactical significance
+    
     for square in chess.SQUARES: # iterate over all squares
         piece = board_after.piece_at(square) # get piece at square
         if piece and piece.color == turn_color: # check if its player's piece 
             attackers = board_after.attackers(not turn_color, square) # get attackers of that square
             if attackers: # if there are attackers
-                # Also check if the piece has any defenders
                 defenders = board_after.attackers(turn_color, square) # get defenders of that square
                 
                 lva_square = min(attackers, key=lambda s: PIECE_VALUES.get(board_after.piece_at(s).piece_type, 0)) # find least valuable attacker
@@ -282,21 +283,72 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
                 piece_value = PIECE_VALUES.get(piece.piece_type, 0) # get value of piece
                 see_value = see(board_after, capture_move) # calculate static exchange evaluation
                 
-                # IMPROVED LOGIC: A piece is truly hanging if:
-                # 1. SEE value is positive (capturing wins material)
-                # 2. SEE value is close to piece value (not well defended)
-                # 3. Or if SEE shows clear material gain (>100 centipawns)
-                if see_value > 100 and see_value >= piece_value * 0.7: # if capture wins significant material (>1 pawn) and recovers most of piece value
-                    piece_name = PIECE_NAMES.get(piece.piece_type, "piece") # get name of piece
-                    description = f"your move {move_played_san} left your {piece_name} on {chess.square_name(square)} undefended." # create description
-                    if debug_mode: 
-                        print(f"[DEBUG] Hanging piece detected:")
-                        print(f"[DEBUG]   Move played: {move_played_san}")
-                        print(f"[DEBUG]   Hanging piece: {piece_name} on {chess.square_name(square)}")
-                        print(f"[DEBUG]   Attackers: {len(attackers)}, Defenders: {len(defenders)}")
-                        print(f"[DEBUG]   SEE value: {see_value}, Piece value: {piece_value}")
-                        print(f"[DEBUG]   Threshold: SEE > 100 and SEE >= {piece_value * 0.7}")
-                    return {"category": "Hanging a Piece", "move_number": actual_move_number, "description": description, "punishing_move": capture_move} # return blunder dict
+                # Get thresholds based on piece type
+                if piece.piece_type == chess.PAWN:
+                    hanging_threshold = 50  # For pawns, need to win at least 50 centipawns
+                elif piece.piece_type in [chess.KNIGHT, chess.BISHOP]:
+                    hanging_threshold = 150  # For minor pieces, need to win at least 150 centipawns
+                elif piece.piece_type == chess.ROOK:
+                    hanging_threshold = 200  # For rooks, need to win at least 200 centipawns
+                elif piece.piece_type == chess.QUEEN:
+                    hanging_threshold = 400  # For queens, need to win at least 400 centipawns
+                else:
+                    hanging_threshold = 100  # Default threshold
+                
+                # Check if the piece is truly hanging
+                if see_value >= hanging_threshold:
+                    # ENHANCED: Check if the opponent's capture would be a blunder for them
+                    # Simulate the opponent capturing this piece
+                    board_after_capture = board_after.copy()
+                    board_after_capture.push(capture_move)
+                    
+                    # Check if we have a strong tactical response (like capturing a queen)
+                    our_best_responses = []
+                    for response_move in board_after_capture.legal_moves:
+                        if board_after_capture.is_capture(response_move):
+                            response_see = see(board_after_capture, response_move)
+                            if response_see > 300:  # If we can win significant material (like a queen)
+                                our_best_responses.append((response_move, response_see))
+                    
+                    # If opponent's capture allows us to win significant material, this piece isn't truly hanging
+                    if our_best_responses:
+                        max_response_value = max(response[1] for response in our_best_responses)
+                        if max_response_value > piece_value:  # If our response wins more than we lose
+                            if debug_mode:
+                                print(f"[DEBUG] Piece {PIECE_NAMES.get(piece.piece_type, 'piece')} on {chess.square_name(square)} appears hanging but capturing it would be a blunder for opponent (we can win {max_response_value} centipawns)")
+                            continue  # Skip this piece as it's not truly hanging
+                    
+                    # Store hanging piece info for comparison
+                    hanging_pieces.append({
+                        'square': square,
+                        'piece': piece,
+                        'see_value': see_value,
+                        'piece_value': piece_value,
+                        'capture_move': capture_move,
+                        'attackers': len(attackers),
+                        'defenders': len(defenders)
+                    })
+    
+    # If we found hanging pieces, report the most significant one
+    if hanging_pieces:
+        # Sort by SEE value (highest first) to find the most significant hanging piece
+        hanging_pieces.sort(key=lambda x: x['see_value'], reverse=True)
+        most_significant = hanging_pieces[0]
+        
+        piece_name = PIECE_NAMES.get(most_significant['piece'].piece_type, "piece")
+        square_name = chess.square_name(most_significant['square'])
+        description = f"your move {move_played_san} left your {piece_name} on {square_name} undefended."
+        
+        if debug_mode: 
+            print(f"[DEBUG] Most significant hanging piece:")
+            print(f"[DEBUG]   Move played: {move_played_san}")
+            print(f"[DEBUG]   Hanging piece: {piece_name} on {square_name}")
+            print(f"[DEBUG]   Attackers: {most_significant['attackers']}, Defenders: {most_significant['defenders']}")
+            print(f"[DEBUG]   SEE value: {most_significant['see_value']}, Piece value: {most_significant['piece_value']}")
+            if len(hanging_pieces) > 1:
+                print(f"[DEBUG]   Note: {len(hanging_pieces)} pieces are hanging, reporting the most significant")
+        
+        return {"category": "Hanging a Piece", "move_number": actual_move_number, "description": description, "punishing_move": most_significant['capture_move']}
     
     return None
 
@@ -447,8 +499,9 @@ def check_for_allowed_pin(board_after, info_after_move, turn_color, move_played,
 
 def categorize_blunder(board_before, board_after, move_played, info_before_move, info_after_move, best_move_info, blunder_threshold, debug_mode, actual_move_number):
     """
-    Categorization pipeline. Tries to find the most specific blunder category.
-    Returns a dictionary with blunder info, or a general 'Mistake' if no specific category is found.
+    Categorization pipeline. First checks if move is actually a blunder (win probability drop),
+    then tries to find the most specific blunder category.
+    Returns a dictionary with blunder info, or None if no blunder found.
     Used By: analyze_game.
     Uses: check_for_allowed_fork, check_for_missed_fork, check_for_allowed_pin, check_for_missed_pin, check_for_material_loss, check_for_missed_material_gain, cp_to_win_prob.
     Time complexity: O(n) where n is number of check functions (currently 6).
@@ -465,12 +518,28 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
         if debug_mode: print(f"[DEBUG] GLOBAL CHECK: Move played ({move_played_san}) IS the engine's best move - no blunder categorization")
         return None
     
+    # FIRST: Check if this move actually causes a significant win probability drop
+    # This is the fundamental criterion for being a blunder
+    win_prob_before = cp_to_win_prob(info_before_move["score"].pov(turn_color).score(mate_score=10000)) # get win probability before move
+    win_prob_after = cp_to_win_prob(after_move_eval.score(mate_score=10000)) # get win probability after move
+    win_prob_drop = (win_prob_before - win_prob_after) * 100 # calculate win probability drop percentage
+    
+    if debug_mode: print(f"[DEBUG] Win prob drop: {win_prob_drop:.1f}%, Threshold: {blunder_threshold}%") # debug output
+    
+    # If win probability drop is below threshold, this is NOT a blunder
+    if win_prob_drop < blunder_threshold:
+        if debug_mode: print(f"[DEBUG] Win prob drop ({win_prob_drop:.1f}%) below threshold ({blunder_threshold}%) - not a blunder")
+        return None
+    
+    # At this point, we know it's a blunder (win prob drop >= threshold)
+    # Now we categorize what TYPE of blunder it is
+    
     # Check 1: Allowed Checkmate (highest priority)
     if after_move_eval.is_mate() and after_move_eval.mate() < 0: # if opponent can force mate
         mate_in = abs(after_move_eval.mate()) # get number of moves to mate
         description = f"your move {move_played_san} allows the opponent to force checkmate in {mate_in}." # create description
         if debug_mode: print(f"[DEBUG] Found Allowed Checkmate") # debug output
-        return {"category": "Allowed Checkmate", "move_number": actual_move_number, "description": description} # return blunder dict
+        return {"category": "Allowed Checkmate", "move_number": actual_move_number, "description": description, "win_prob_drop": win_prob_drop} # return blunder dict
     
     # Check 2: Missed Checkmate
     best_move_eval = best_move_info["score"].pov(turn_color) # get best move evaluation from player's perspective
@@ -479,53 +548,50 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
         best_move_san = board_before.san(best_move) # convert move to SAN format
         description = f"your move {move_played_san} missed a checkmate in {mate_in}. The best move was {best_move_san}." # create description
         if debug_mode: print(f"[DEBUG] Found Missed Checkmate") # debug output
-        return {"category": "Missed Checkmate", "move_number": actual_move_number, "description": description} # return blunder dict
+        return {"category": "Missed Checkmate", "move_number": actual_move_number, "description": description, "win_prob_drop": win_prob_drop} # return blunder dict
     
     # Check 3: Allowed Fork
     allowed_fork = check_for_allowed_fork(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed fork
     if allowed_fork: # if allowed fork found
+        allowed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
         return allowed_fork # return the blunder
     
     # Check 4: Missed Fork
     missed_fork = check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed fork
     if missed_fork: # if missed fork found
+        missed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
         return missed_fork # return the blunder
     
     # Check 5: Allowed Pin
     allowed_pin = check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed pin
     if allowed_pin: # if allowed pin found
+        allowed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
         return allowed_pin # return the blunder
     
     # Check 6: Missed Pin
     missed_pin = check_for_missed_pin(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed pin
     if missed_pin: # if missed pin found
+        missed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
         return missed_pin # return the blunder
     
     # Check 7: Material Loss using SEE
     material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number) # check for material loss
     if material_blunder: # if material loss found
+        material_blunder["win_prob_drop"] = win_prob_drop # add win probability drop
         return material_blunder # return the blunder
     
     # Check 8: Missed Material Gain using SEE
     missed_material = check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode, actual_move_number) # check for missed material gain
     if missed_material: # if missed material gain found
+        missed_material["win_prob_drop"] = win_prob_drop # add win probability drop
         return missed_material # return the blunder
     
-    # Check 9: Win Probability Drop (fallback)
-    win_prob_before = cp_to_win_prob(info_before_move["score"].pov(turn_color).score(mate_score=10000)) # get win probability before move
-    win_prob_after = cp_to_win_prob(after_move_eval.score(mate_score=10000)) # get win probability after move
-    win_prob_drop = (win_prob_before - win_prob_after) * 100 # calculate win probability drop percentage
-    
-    if debug_mode: print(f"[DEBUG] Win prob drop: {win_prob_drop:.1f}%, Threshold: {blunder_threshold}%") # debug output
-    
-    if win_prob_drop >= blunder_threshold: # if win probability drop exceeds threshold
-        best_move_san = board_before.san(best_move_info['pv'][0]) # convert best move to SAN format
-        description = f"your move {move_played_san} dropped your win probability by {win_prob_drop:.1f}%. The best move was {best_move_san}." # create description
-        if debug_mode: print(f"[DEBUG] Found Mistake based on win probability") # debug output
-        return {"category": "Mistake", "move_number": actual_move_number, "description": description} # return blunder dict
-    
-    if debug_mode: print(f"[DEBUG] No blunder detected") # debug output
-    return None # no blunder found
+    # Check 9: General Mistake (fallback)
+    # We already know it's a blunder due to win probability drop, so categorize as general mistake
+    best_move_san = board_before.san(best_move_info['pv'][0]) # convert best move to SAN format
+    description = f"your move {move_played_san} dropped your win probability by {win_prob_drop:.1f}%. The best move was {best_move_san}." # create description
+    if debug_mode: print(f"[DEBUG] Found Mistake based on win probability") # debug output
+    return {"category": "Mistake", "move_number": actual_move_number, "description": description, "win_prob_drop": win_prob_drop} # return blunder dict
 
 def analyze_game(game, engine, target_user, blunder_threshold, engine_think_time, debug_mode):
     """

@@ -23,9 +23,6 @@ const heroStatDescription = document.getElementById('heroStatDescription');
 const heroStatExamples = document.getElementById('heroStatExamples');
 const analysisStats = document.getElementById('analysisStats');
 const blundersList = document.getElementById('blundersList');
-const gamesList = document.getElementById('gamesList');
-const gamesContent = document.getElementById('gamesContent');
-const gamesToggleIcon = document.getElementById('gamesToggleIcon');
 
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
@@ -234,10 +231,6 @@ function displayResults(results) {
         displayHeroStat(results.hero_stat);
     }
     
-    if (results.games_list) {
-        displayGamesList(results.games_list);
-    }
-    
     if (results.blunder_breakdown) {
         displayBlunderBreakdown(results.blunder_breakdown);
     } else if (results.blunders) {
@@ -291,45 +284,7 @@ function displayHeroStat(heroStat) {
     }
 }
 
-function displayGamesList(games) {
-    if (!games || games.length === 0) {
-        gamesList.innerHTML = '<div class="no-games">No games data available</div>';
-        return;
-    }
-    
-    const gamesHtml = games.map(game => {
-        // Determine which player was analyzed (highlight in bold)
-        const targetPlayer = game.target_player;
-        const whiteDisplay = game.white === targetPlayer ? `<strong>${game.white}</strong>` : game.white;
-        const blackDisplay = game.black === targetPlayer ? `<strong>${game.black}</strong>` : game.black;
-        
-        // Format game type and rating
-        const gameTypeIcon = getGameTypeIcon(game.time_class);
-        const ratingBadge = game.rated ? '🏆 Rated' : '🎮 Unrated';
-        
-        return `
-            <div class="game-item">
-                <div class="game-info">
-                    <div class="game-players">
-                        ${whiteDisplay} vs ${blackDisplay}
-                    </div>
-                    <div class="game-details">
-                        <span class="game-meta">📅 ${game.date}</span>
-                        <span class="game-meta">${gameTypeIcon} ${game.time_class}</span>
-                        <span class="game-meta">${ratingBadge}</span>
-                    </div>
-                </div>
-                ${game.url ? `
-                    <a href="${game.url}" target="_blank" class="game-link">
-                        🔗 View Game
-                    </a>
-                ` : '<span class="game-link-disabled">No link</span>'}
-            </div>
-        `;
-    }).join('');
-    
-    gamesList.innerHTML = gamesHtml;
-}
+
 
 function displayGamesWithBlunders(gamesWithBlunders) {
     const gamesByBlundersContainer = document.getElementById('games-by-blunders');
@@ -359,9 +314,7 @@ function displayGamesWithBlunders(gamesWithBlunders) {
                             ${whiteDisplay} vs ${blackDisplay}
                         </div>
                         <div class="game-details">
-                            <span class="game-meta">📅 ${game.date}</span>
-                            <span class="game-meta">${gameTypeIcon} ${game.time_class}</span>
-                            <span class="game-meta">${ratingBadge}</span>
+                            <span class="game-meta">📅 ${game.date} • ${gameTypeIcon} ${formatGameType(game.time_class)} • ${ratingBadge}</span>
                         </div>
                     </div>
                     <div class="game-blunder-stats">
@@ -409,6 +362,18 @@ function getGameTypeIcon(timeClass) {
         case 'daily': return '📬';
         default: return '🎮';
     }
+}
+
+function formatGameType(timeClass) {
+    // Capitalize the first letter of the game type
+    if (!timeClass || timeClass === 'unknown') return 'Unknown';
+    return timeClass.charAt(0).toUpperCase() + timeClass.slice(1);
+}
+
+function formatWinProbDrop(winProbDrop) {
+    // Format win probability drop with down arrow and styling
+    if (!winProbDrop || winProbDrop <= 0) return '';
+    return `<span class="win-prob-drop">-${winProbDrop.toFixed(1)}% ↓</span>`;
 }
 
 function displayBlunderBreakdown(breakdown) {
@@ -586,20 +551,7 @@ function addProgressLog(message) {
     progressLog.scrollTop = progressLog.scrollHeight;
 }
 
-// Toggle games section
-function toggleGamesSection() {
-    const isCollapsed = gamesContent.classList.contains('collapsed');
-    
-    if (isCollapsed) {
-        gamesContent.classList.remove('collapsed');
-        gamesToggleIcon.classList.add('rotated');
-        gamesToggleIcon.textContent = '▲';
-    } else {
-        gamesContent.classList.add('collapsed');
-        gamesToggleIcon.classList.remove('rotated');
-        gamesToggleIcon.textContent = '▼';
-    }
-}
+
 
 // Toggle blunders section
 function toggleBlundersSection() {
@@ -678,7 +630,7 @@ function loadGameBlunders(container, gameNumber) {
             <div class="individual-blunder">
                 <div class="blunder-header">
                     <div class="blunder-move">
-                        🎯 Move ${blunder.move_number || 'Unknown'}: ${blunder.category || 'Unknown'}
+                        🎯 Move ${blunder.move_number || 'Unknown'}: ${blunder.category || 'Unknown'} ${formatWinProbDrop(blunder.win_prob_drop)}
                     </div>
                 </div>
                 <div class="blunder-description">
@@ -799,15 +751,13 @@ function loadBlunderDetails(container, blunderData) {
                 <div class="blunder-occurrence">
                     <div class="blunder-occurrence-header">
                         <div class="occurrence-move">
-                            🎯 Move ${occurrence.move_number || 'Unknown'}
+                            🎯 Move ${occurrence.move_number || 'Unknown'} ${formatWinProbDrop(occurrence.win_prob_drop)}
                         </div>
                         <div class="occurrence-game-info">
                             Game #${gameNumber}: ${whiteDisplay} vs ${blackDisplay}
                         </div>
                         <div class="occurrence-game-meta">
-                            <span class="game-meta-item">📅 ${gameDate}</span>
-                            <span class="game-meta-item">${gameTypeIcon} ${timeClass}</span>
-                            <span class="game-meta-item">${isRated}</span>
+                            <span class="game-meta-item">📅 ${gameDate} • ${gameTypeIcon} ${formatGameType(timeClass)} • ${isRated}</span>
                         </div>
                     </div>
                     <div class="blunder-occurrence-description">
