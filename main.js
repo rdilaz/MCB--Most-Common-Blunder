@@ -24,6 +24,50 @@ const heroStatExamples = document.getElementById('heroStatExamples');
 const analysisStats = document.getElementById('analysisStats');
 const blundersList = document.getElementById('blundersList');
 
+// New functionality - Reset page function
+function resetPage() {
+    // Reset all form inputs
+    document.getElementById('username').value = '';
+    document.getElementById('gameCount').value = 20;
+    document.getElementById('gameCountValue').textContent = '20';
+    document.getElementById('gameTypes').selectedIndex = -1;
+    // Re-select default game types
+    const gameTypesSelect = document.getElementById('gameTypes');
+    for (let option of gameTypesSelect.options) {
+        if (option.value === 'blitz' || option.value === 'rapid') {
+            option.selected = true;
+        } else {
+            option.selected = false;
+        }
+    }
+    document.getElementById('ratingFilter').value = 'rated';
+    document.getElementById('gameResult').value = 'all';
+    document.getElementById('blunderThreshold').value = 15;
+    document.getElementById('blunderThresholdValue').textContent = '15';
+    document.getElementById('analysisDepth').value = 'fast';
+    
+    // Hide results and progress sections
+    resultsSection.classList.add('hidden');
+    progressSection.classList.add('hidden');
+    
+    // Reset button state
+    analyzeBtn.querySelector('.btn-text').textContent = '🔍 Analyze My Games';
+    analyzeBtn.querySelector('.btn-loader').classList.add('hidden');
+    analyzeBtn.disabled = false;
+    
+    // Smooth scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// Slider updates
+document.getElementById('gameCount').addEventListener('input', function() {
+    document.getElementById('gameCountValue').textContent = this.value;
+});
+
+document.getElementById('blunderThreshold').addEventListener('input', function() {
+    document.getElementById('blunderThresholdValue').textContent = this.value;
+});
+
 // Initialize the application
 document.addEventListener('DOMContentLoaded', function() {
     initializeEventListeners();
@@ -81,6 +125,8 @@ function handleAnalyzeClick() {
         gameCount: parseInt(gameCountSlider.value),
         gameTypes: selectedGameTypes,
         ratingFilter: ratingFilterSelect.value,
+        gameResult: document.getElementById('gameResult').value,
+        blunderThreshold: parseInt(document.getElementById('blunderThreshold').value),
         analysisDepth: analysisDepthSelect.value
     };
     
@@ -99,7 +145,7 @@ function startAnalysis(settings) {
     
     // Log analysis start
     addProgressLog(`🚀 Starting analysis for ${settings.username}`);
-    addProgressLog(`⚙️ Settings: ${settings.gameCount} games, ${settings.gameTypes.join(', ')}, ${settings.ratingFilter}, ${settings.analysisDepth} depth`);
+    addProgressLog(`⚙️ Settings: ${settings.gameCount} games, ${settings.gameTypes.join(', ')}, ${settings.ratingFilter}, ${settings.gameResult}, ${settings.blunderThreshold}% threshold, ${settings.analysisDepth} depth`);
     
     // Start server-sent events for progress tracking
     startProgressTracking();

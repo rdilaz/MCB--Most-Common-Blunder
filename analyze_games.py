@@ -265,12 +265,17 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
     # Check for hanging pieces using improved SEE logic
     hanging_pieces = [] # list to store hanging pieces with their tactical significance
     
+    if debug_mode: print(f"[DEBUG] Checking for hanging pieces after move {move_played_san}...")
+    
     for square in chess.SQUARES: # iterate over all squares
         piece = board_after.piece_at(square) # get piece at square
         if piece and piece.color == turn_color: # check if its player's piece 
+            if debug_mode: print(f"[DEBUG]   Checking {PIECE_NAMES.get(piece.piece_type, 'piece')} on {chess.square_name(square)}")
+            
             attackers = board_after.attackers(not turn_color, square) # get attackers of that square
             if attackers: # if there are attackers
                 defenders = board_after.attackers(turn_color, square) # get defenders of that square
+                if debug_mode: print(f"[DEBUG]     Attackers: {len(attackers)}, Defenders: {len(defenders)}")
                 
                 lva_square = min(attackers, key=lambda s: PIECE_VALUES.get(board_after.piece_at(s).piece_type, 0)) # find least valuable attacker
                 lva_piece = board_after.piece_at(lva_square) # get lva piece
@@ -282,6 +287,8 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
                 
                 piece_value = PIECE_VALUES.get(piece.piece_type, 0) # get value of piece
                 see_value = see(board_after, capture_move) # calculate static exchange evaluation
+                
+                if debug_mode: print(f"[DEBUG]     SEE value: {see_value}, Piece value: {piece_value}")
                 
                 # Get thresholds based on piece type
                 if piece.piece_type == chess.PAWN:
@@ -295,8 +302,11 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
                 else:
                     hanging_threshold = 100  # Default threshold
                 
+                if debug_mode: print(f"[DEBUG]     Threshold: {hanging_threshold}")
+                
                 # Check if the piece is truly hanging
                 if see_value >= hanging_threshold:
+                    if debug_mode: print(f"[DEBUG]     SEE value ({see_value}) >= threshold ({hanging_threshold}), checking for tactical responses...")
                     # ENHANCED: Check if the opponent's capture would be a blunder for them
                     # Simulate the opponent capturing this piece
                     board_after_capture = board_after.copy()
@@ -307,27 +317,73 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
                     for response_move in board_after_capture.legal_moves:
                         if board_after_capture.is_capture(response_move):
                             response_see = see(board_after_capture, response_move)
-                            if response_see > 300:  # If we can win significant material (like a queen)
+                            if response_see > 200:  # Lower threshold - rook+ value material
                                 our_best_responses.append((response_move, response_see))
                     
-                    # If opponent's capture allows us to win significant material, this piece isn't truly hanging
+                    if debug_mode: print(f"[DEBUG]     Found {len(our_best_responses)} tactical responses")
+                    
+                    # IMPROVED LOGIC: Only filter out if our response wins SIGNIFICANTLY more than we lose
+                    # This prevents filtering out legitimate hanging pieces
+                    should_filter_out = False
                     if our_best_responses:
                         max_response_value = max(response[1] for response in our_best_responses)
-                        if max_response_value > piece_value:  # If our response wins more than we lose
+                        # Only filter out if:
+                        # 1. Our response wins at least 200 more centipawns than we lose (not just more)
+                        # 2. AND the response value is substantial (500+ centipawns, like a queen)
+                        net_gain = max_response_value - piece_value
+                        if debug_mode: print(f"[DEBUG]     Max response value: {max_response_value}, Net gain: {net_gain}")
+                        if net_gain >= 200 and max_response_value >= 500:
+                            should_filter_out = True
                             if debug_mode:
-                                print(f"[DEBUG] Piece {PIECE_NAMES.get(piece.piece_type, 'piece')} on {chess.square_name(square)} appears hanging but capturing it would be a blunder for opponent (we can win {max_response_value} centipawns)")
-                            continue  # Skip this piece as it's not truly hanging
+                                print(f"[DEBUG]     Filtering out: Piece {PIECE_NAMES.get(piece.piece_type, 'piece')} on {chess.square_name(square)} appears hanging but capturing it would be a blunder for opponent (net gain: {net_gain}, response value: {max_response_value})")
                     
-                    # Store hanging piece info for comparison
-                    hanging_pieces.append({
-                        'square': square,
-                        'piece': piece,
-                        'see_value': see_value,
-                        'piece_value': piece_value,
-                        'capture_move': capture_move,
-                        'attackers': len(attackers),
-                        'defenders': len(defenders)
-                    })
+                    if not should_filter_out:
+                        if debug_mode: print(f"[DEBUG]     Adding to hanging pieces list")
+                        # Store hanging piece info for comparison
+                        hanging_pieces.append({
+                            'square': square,
+                            'piece': piece,
+                            'see_value': see_value,
+                            'piece_value': piece_value,
+                            'capture_move': capture_move,
+                            'attackers': len(attackers),
+                            'defenders': len(defenders)
+                        })
+                    else:
+                        if debug_mode: print(f"[DEBUG]     Filtered out due to tactical response")
+                else:
+                    # ENHANCED: Check if this piece is hanging due to a checking capture
+                    # Even if SEE is below threshold, a check might make it hanging
+                    if board_after.gives_check(capture_move):
+                        if debug_mode: print(f"[DEBUG]     Capture gives check - piece may be hanging despite low SEE")
+                        # When the capture gives check, the defending side must respond to check
+                        # This often means they can't immediately recapture, making the piece effectively hanging
+                        
+                        # For checking captures, use a lower threshold
+                        check_hanging_threshold = max(50, hanging_threshold // 3)  # Much lower threshold for checks
+                        
+                        if see_value >= check_hanging_threshold:
+                            if debug_mode: print(f"[DEBUG]     Check capture SEE ({see_value}) >= check threshold ({check_hanging_threshold}), piece is hanging")
+                            
+                            # Store hanging piece info for comparison
+                            hanging_pieces.append({
+                                'square': square,
+                                'piece': piece,
+                                'see_value': see_value,
+                                'piece_value': piece_value,
+                                'capture_move': capture_move,
+                                'attackers': len(attackers),
+                                'defenders': len(defenders),
+                                'is_check': True  # Flag this as a checking capture
+                            })
+                        else:
+                            if debug_mode: print(f"[DEBUG]     Check capture SEE ({see_value}) < check threshold ({check_hanging_threshold}), not hanging")
+                    else:
+                        if debug_mode: print(f"[DEBUG]     SEE value ({see_value}) < threshold ({hanging_threshold}), not hanging")
+            else:
+                if debug_mode: print(f"[DEBUG]     No attackers")
+    
+    if debug_mode: print(f"[DEBUG] Found {len(hanging_pieces)} hanging pieces total")
     
     # If we found hanging pieces, report the most significant one
     if hanging_pieces:
@@ -337,7 +393,15 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
         
         piece_name = PIECE_NAMES.get(most_significant['piece'].piece_type, "piece")
         square_name = chess.square_name(most_significant['square'])
-        description = f"your move {move_played_san} left your {piece_name} on {square_name} undefended."
+        
+        # Check if this is a checking capture
+        is_check_capture = most_significant.get('is_check', False)
+        if is_check_capture:
+            # For checking captures, provide a more detailed explanation
+            capture_move_san = board_after.san(most_significant['capture_move'])
+            description = f"your move {move_played_san} left your {piece_name} on {square_name} hanging. The opponent can play {capture_move_san} (check), forcing you to respond to the check before you can recapture."
+        else:
+            description = f"your move {move_played_san} left your {piece_name} on {square_name} undefended."
         
         if debug_mode: 
             print(f"[DEBUG] Most significant hanging piece:")
@@ -345,6 +409,8 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
             print(f"[DEBUG]   Hanging piece: {piece_name} on {square_name}")
             print(f"[DEBUG]   Attackers: {most_significant['attackers']}, Defenders: {most_significant['defenders']}")
             print(f"[DEBUG]   SEE value: {most_significant['see_value']}, Piece value: {most_significant['piece_value']}")
+            if is_check_capture:
+                print(f"[DEBUG]   Note: This is a checking capture")
             if len(hanging_pieces) > 1:
                 print(f"[DEBUG]   Note: {len(hanging_pieces)} pieces are hanging, reporting the most significant")
         
