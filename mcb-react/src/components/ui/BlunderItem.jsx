@@ -42,7 +42,7 @@ const BlunderItem = ({ blunder, index }) => {
 
 const BlunderOccurrences = ({ occurrences }) => {
   if (!occurrences || occurrences.length === 0) {
-    return <div className="no-occurrences">No occurrences found</div>;
+    return <div className="no-details">No data available</div>;
   }
 
   return (

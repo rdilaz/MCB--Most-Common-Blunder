@@ -16,8 +16,10 @@ const HeroStat = ({ heroStat }) => {
             <span className="tooltip-trigger"></span>
             <div className="tooltip-content">
               <strong>Severity Score</strong><br />
-              Frequency × Weight × Impact<br /><br />
-              <strong>Weights:</strong> Checkmate (3.0) • Hanging (2.5) • Forks (2.0) • Material (1.5-1.8) • General (1.0)
+              Represents the impact of this type of blunder.<br /><br />
+              Takes into account how many times the blunder occured
+              and how much it impacted evaluation. <br /><br />
+              Higher score = more frequent + more damaging mistakes.
             </div>
           </div>
           <small>severity score</small>

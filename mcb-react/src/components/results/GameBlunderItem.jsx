@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { getGameTypeIcon, formatGameType, formatBlunderDescription } from '../../utils/templateHelpers';
+import { useMCB } from '../../context/MCBContext';
 
 const GameBlunderItem = ({ game }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -52,23 +53,33 @@ const GameBlunderItem = ({ game }) => {
         </button>
       </div>
       <div className={`game-blunder-details ${isExpanded ? '' : 'collapsed'}`}>
-        {isExpanded && <GameBlunders blunders={game.blunders || []} />}
+        {isExpanded && <GameBlunders gameNumber={game.game_number} blunders={game.blunders} />}
       </div>
     </div>
   );
 };
 
-const GameBlunders = ({ blunders }) => {
-  if (!blunders || blunders.length === 0) {
+const GameBlunders = ({ gameNumber, blunders }) => {
+  const { cache } = useMCB();
+
+  // Handle case where blunders are not directly provided (mirrors original loadGameBlunders)
+  let actualBlunders = blunders;
+  
+  if (!actualBlunders && cache.gamesWithBlunders) {
+    const gameData = cache.gamesWithBlunders.find(g => g.game_number === gameNumber);
+    actualBlunders = gameData?.blunders;
+  }
+
+  if (!actualBlunders || actualBlunders.length === 0) {
     return <div className="no-game-blunders">No blunders found for this game</div>;
   }
 
   return (
     <div className="game-blunders-list">
       <div className="game-blunders-header">
-        {blunders.length} blunder{blunders.length !== 1 ? 's' : ''} found in chronological order:
+        {actualBlunders.length} blunder{actualBlunders.length !== 1 ? 's' : ''} found in chronological order:
       </div>
-      {blunders.map((blunder, index) => (
+      {actualBlunders.map((blunder, index) => (
         <IndividualBlunder key={index} blunder={blunder} />
       ))}
     </div>

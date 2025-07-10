@@ -77,13 +77,13 @@ DANGEROUS_PATTERNS = ['drop', 'select', 'insert', 'delete', 'update', 'union', '
 BLUNDER_CATEGORY_PRIORITY = {
     "Allowed Checkmate": 1,
     "Missed Checkmate": 2,
-    "Allowed Fork": 3,
-    "Missed Fork": 4,
-    "Allowed Pin": 5,
-    "Missed Pin": 6,
-    "Hanging a Piece": 7,
-    "Losing Exchange": 8,
-    "Missed Material Gain": 9,
+    "Hanging a Piece": 3,  # Moved up - hanging pieces are more critical
+    "Allowed Fork": 4,
+    "Missed Fork": 5,
+    "Losing Exchange": 6,
+    "Missed Material Gain": 7,
+    "Allowed Pin": 8,
+    "Missed Pin": 9,  # Moved down - pins are less critical than hanging pieces
     "Mistake": 10
 }
 
@@ -111,7 +111,7 @@ PIECE_NAMES = {
 CATEGORY_WEIGHTS = {
     "Allowed Checkmate": 3.0,
     "Missed Checkmate": 3.0,
-    "Hanging a Piece": 2.5,
+    "Hanging a Piece": 3.0,  # Increased from 2.5 to 3.0 - same as checkmate!
     "Allowed Fork": 2.0,
     "Missed Fork": 2.0,
     "Losing Exchange": 2.0,
@@ -125,7 +125,7 @@ CATEGORY_WEIGHTS = {
 BASE_IMPACT_VALUES = {
     'Allowed Checkmate': 45.0,
     'Missed Checkmate': 40.0,
-    'Hanging a Piece': 25.0,
+    'Hanging a Piece': 35.0,  # Increased from 25.0 to 35.0 - much higher than pins
     'Allowed Fork': 20.0,
     'Missed Fork': 18.0,
     'Losing Exchange': 15.0,

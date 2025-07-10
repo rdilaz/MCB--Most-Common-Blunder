@@ -13,13 +13,13 @@ ENGINE_THINK_TIME_DEFAULT = 0.1
 BLUNDER_CATEGORY_PRIORITY = {
     "Allowed Checkmate": 1,
     "Missed Checkmate": 2,
-    "Allowed Fork": 3,
-    "Missed Fork": 4,
-    "Allowed Pin": 5,
-    "Missed Pin": 6,
-    "Hanging a Piece": 7,
-    "Losing Exchange": 8,
-    "Missed Material Gain": 9,
+    "Hanging a Piece": 3,  # Moved up - hanging pieces are more critical
+    "Allowed Fork": 4,
+    "Missed Fork": 5,
+    "Losing Exchange": 6,
+    "Missed Material Gain": 7,
+    "Allowed Pin": 8,
+    "Missed Pin": 9,  # Moved down - pins are less critical than hanging pieces
     "Mistake": 10
 }
 PIECE_VALUES = {
@@ -275,7 +275,13 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
             attackers = board_after.attackers(not turn_color, square) # get attackers of that square
             if attackers: # if there are attackers
                 defenders = board_after.attackers(turn_color, square) # get defenders of that square
-                if debug_mode: print(f"[DEBUG]     Attackers: {len(attackers)}, Defenders: {len(defenders)}")
+                defenders_before = board_before.attackers(turn_color, square) # get defenders before the move
+                defenders_changed = len(defenders) != len(defenders_before) # check if defenders changed
+                
+                if debug_mode: 
+                    print(f"[DEBUG]     Attackers: {len(attackers)}, Defenders: {len(defenders)} (was {len(defenders_before)})")
+                    if defenders_changed:
+                        print(f"[DEBUG]     ** Defenders changed due to move! **")
                 
                 lva_square = min(attackers, key=lambda s: PIECE_VALUES.get(board_after.piece_at(s).piece_type, 0)) # find least valuable attacker
                 lva_piece = board_after.piece_at(lva_square) # get lva piece
@@ -347,7 +353,8 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
                             'piece_value': piece_value,
                             'capture_move': capture_move,
                             'attackers': len(attackers),
-                            'defenders': len(defenders)
+                            'defenders': len(defenders),
+                            'defenders_changed': defenders_changed  # Track if this move affected the piece's defense
                         })
                     else:
                         if debug_mode: print(f"[DEBUG]     Filtered out due to tactical response")
@@ -374,6 +381,7 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
                                 'capture_move': capture_move,
                                 'attackers': len(attackers),
                                 'defenders': len(defenders),
+                                'defenders_changed': defenders_changed,  # Track if this move affected the piece's defense
                                 'is_check': True  # Flag this as a checking capture
                             })
                         else:
@@ -387,8 +395,31 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
     
     # If we found hanging pieces, report the most significant one
     if hanging_pieces:
-        # Sort by SEE value (highest first) to find the most significant hanging piece
-        hanging_pieces.sort(key=lambda x: x['see_value'], reverse=True)
+        # IMPROVED LOGIC: Prioritize pieces most affected by the move
+        # Sort by: 1) Defenders changed by move, 2) Undefended pieces first (defenders = 0), 3) Then by piece value (higher first), 4) Then by SEE value
+        def hanging_priority(piece_info):
+            defenders = piece_info['defenders']
+            piece_value = piece_info['piece_value']
+            see_value = piece_info['see_value']
+            defenders_changed = piece_info.get('defenders_changed', False)
+            
+            # Pieces whose defense was affected by the move get highest priority
+            if defenders_changed:
+                move_affected_priority = -2000  # Highest priority
+            else:
+                move_affected_priority = 0  # Lower priority
+            
+            # Truly undefended pieces get second highest priority
+            if defenders == 0:
+                undefended_priority = -1000  # Very high priority
+            else:
+                undefended_priority = defenders  # Lower priority for defended pieces
+            
+            # Tertiary sort by piece value (higher value pieces are more significant)
+            # Quaternary sort by SEE value
+            return (move_affected_priority, undefended_priority, -piece_value, -see_value)
+        
+        hanging_pieces.sort(key=hanging_priority)
         most_significant = hanging_pieces[0]
         
         piece_name = PIECE_NAMES.get(most_significant['piece'].piece_type, "piece")
@@ -413,6 +444,14 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
                 print(f"[DEBUG]   Note: This is a checking capture")
             if len(hanging_pieces) > 1:
                 print(f"[DEBUG]   Note: {len(hanging_pieces)} pieces are hanging, reporting the most significant")
+                print(f"[DEBUG]   All hanging pieces:")
+                for i, hp in enumerate(hanging_pieces):
+                    hp_name = PIECE_NAMES.get(hp['piece'].piece_type, "piece")
+                    hp_square = chess.square_name(hp['square'])
+                    def_changed = hp.get('defenders_changed', False)
+                    priority_info = f"Def:{hp['defenders']}, Val:{hp['piece_value']}, SEE:{hp['see_value']}, DefChanged:{def_changed}"
+                    print(f"[DEBUG]     {i+1}. {hp_name} on {hp_square} ({priority_info})")
+                print(f"[DEBUG]   Selected: #{1} {piece_name} on {square_name} (prioritized by defense_affected > undefended > piece_value > SEE)")
         
         return {"category": "Hanging a Piece", "move_number": actual_move_number, "description": description, "punishing_move": most_significant['capture_move']}
     
@@ -616,35 +655,35 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
         if debug_mode: print(f"[DEBUG] Found Missed Checkmate") # debug output
         return {"category": "Missed Checkmate", "move_number": actual_move_number, "description": description, "win_prob_drop": win_prob_drop} # return blunder dict
     
-    # Check 3: Allowed Fork
+    # Check 3: Material Loss using SEE (Hanging a Piece) - HIGH PRIORITY
+    material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number) # check for material loss
+    if material_blunder: # if material loss found
+        material_blunder["win_prob_drop"] = win_prob_drop # add win probability drop
+        return material_blunder # return the blunder
+    
+    # Check 4: Allowed Fork
     allowed_fork = check_for_allowed_fork(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed fork
     if allowed_fork: # if allowed fork found
         allowed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
         return allowed_fork # return the blunder
     
-    # Check 4: Missed Fork
+    # Check 5: Missed Fork
     missed_fork = check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed fork
     if missed_fork: # if missed fork found
         missed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
         return missed_fork # return the blunder
     
-    # Check 5: Allowed Pin
+    # Check 6: Allowed Pin
     allowed_pin = check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed pin
     if allowed_pin: # if allowed pin found
         allowed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
         return allowed_pin # return the blunder
     
-    # Check 6: Missed Pin
+    # Check 7: Missed Pin - LOWER PRIORITY
     missed_pin = check_for_missed_pin(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed pin
     if missed_pin: # if missed pin found
         missed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
         return missed_pin # return the blunder
-    
-    # Check 7: Material Loss using SEE
-    material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number) # check for material loss
-    if material_blunder: # if material loss found
-        material_blunder["win_prob_drop"] = win_prob_drop # add win probability drop
-        return material_blunder # return the blunder
     
     # Check 8: Missed Material Gain using SEE
     missed_material = check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode, actual_move_number) # check for missed material gain

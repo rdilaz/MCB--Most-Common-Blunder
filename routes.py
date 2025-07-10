@@ -260,6 +260,7 @@ def register_routes(app: Flask):
             return jsonify(create_error_response('Internal server error', 500))
     
     @app.route("/api/progress/<session_id>")
+    @app.limiter.limit("100 per minute")  # Higher limit for progress streaming
     def progress_stream(session_id):
         """Server-Sent Events endpoint for progress updates with enhanced error handling."""
         def generate():

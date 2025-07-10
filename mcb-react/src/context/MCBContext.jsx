@@ -48,6 +48,7 @@ const initialState = {
 const ActionTypes = {
   UPDATE_ANALYSIS: 'UPDATE_ANALYSIS',
   UPDATE_UI: 'UPDATE_UI', 
+  UPDATE_UI_FUNCTION: 'UPDATE_UI_FUNCTION',
   UPDATE_CONNECTION: 'UPDATE_CONNECTION',
   UPDATE_CACHE: 'UPDATE_CACHE',
   UPDATE_SETTINGS: 'UPDATE_SETTINGS',
@@ -67,6 +68,12 @@ function mcbReducer(state, action) {
       return {
         ...state,
         ui: { ...state.ui, ...action.payload }
+      };
+      
+    case ActionTypes.UPDATE_UI_FUNCTION:
+      return {
+        ...state,
+        ui: action.payload(state.ui)
       };
       
     case ActionTypes.UPDATE_CONNECTION:
@@ -117,7 +124,11 @@ export const MCBProvider = ({ children }) => {
   }, []);
 
   const updateUI = useCallback((updates) => {
-    dispatch({ type: ActionTypes.UPDATE_UI, payload: updates });
+    if (typeof updates === 'function') {
+      dispatch({ type: ActionTypes.UPDATE_UI_FUNCTION, payload: updates });
+    } else {
+      dispatch({ type: ActionTypes.UPDATE_UI, payload: updates });
+    }
   }, []);
 
   const updateConnection = useCallback((updates) => {

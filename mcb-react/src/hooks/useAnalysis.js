@@ -47,7 +47,7 @@ export const useAnalysis = () => {
         progressLogs: []
       });
       
-      // Start progress tracking
+      // Start progress tracking FIRST (like original)
       startProgressTracking(sessionId);
       
       // Send analysis request to Flask backend
@@ -121,7 +121,7 @@ export const useAnalysis = () => {
       updateUI({ currentProgress: data.percentage });
     }
     
-    // Add progress log entry - fixed to handle state updates properly
+    // Add progress log entry - FIXED to properly add new entries
     if (data.message) {
       updateUI(prevState => ({
         ...prevState,
@@ -161,12 +161,24 @@ export const useAnalysis = () => {
     // Update progress to 100%
     updateUI({ currentProgress: 100 });
     
+    // Add final completion log message (was missing!)
+    updateUI(prevState => ({
+      ...prevState,
+      progressLogs: [...(prevState.progressLogs || []), {
+        message: '✅ Analysis completed!',
+        timestamp: new Date().toLocaleTimeString()
+      }]
+    }));
+    
     // Cache results
     updateCache({
       gamesWithBlunders: results.games_with_blunders || [],
       blunderData: results.blunder_breakdown || [],
       heroStat: results.hero_stat
     });
+    
+    // Set global variable for backward compatibility (was missing!)
+    window.gamesWithBlunders = results.games_with_blunders || [];
     
     // Show results after a brief delay
     setTimeout(() => {
@@ -188,8 +200,17 @@ export const useAnalysis = () => {
       });
     }
     
+    // Add error log message (was missing!)
+    updateUI(prevState => ({
+      ...prevState,
+      progressLogs: [...(prevState.progressLogs || []), {
+        message: `❌ Error: ${errorMessage}`,
+        timestamp: new Date().toLocaleTimeString()
+      }]
+    }));
+    
     alert(`Analysis failed: ${errorMessage}`);
-  }, [updateAnalysis, connection.eventSource, updateConnection]);
+  }, [updateAnalysis, connection.eventSource, updateConnection, updateUI]);
 
   return {
     // State

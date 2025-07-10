@@ -20,6 +20,13 @@ const AnalysisForm = () => {
     startAnalysis();
   };
 
+  // Handle Enter key in username input (was missing!)
+  const handleUsernameKeyPress = (e) => {
+    if (e.key === 'Enter' && !isAnalyzing) {
+      startAnalysis();
+    }
+  };
+
   const validation = validateSettings();
 
   return (
@@ -38,6 +45,7 @@ const AnalysisForm = () => {
             placeholder="Enter your Chess.com username"
             value={settings.username}
             onChange={(e) => handleInputChange('username', e.target.value)}
+            onKeyPress={handleUsernameKeyPress}
             required
           />
         </div>
@@ -48,7 +56,7 @@ const AnalysisForm = () => {
           <div className="settings-grid">
             <div className="setting-group">
               <label htmlFor="gameCount">
-                Number of Games: <span>{settings.gameCount}</span>
+                Number of Games: <span id="gameCountValue">{settings.gameCount}</span>
               </label>
               <input
                 type="range"
@@ -108,7 +116,7 @@ const AnalysisForm = () => {
 
             <div className="setting-group">
               <label htmlFor="blunderThreshold">
-                Blunder Threshold: <span>{settings.blunderThreshold}</span>%
+                Blunder Threshold: <span id="blunderThresholdValue">{settings.blunderThreshold}</span>%
               </label>
               <input
                 type="range"

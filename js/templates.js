@@ -68,8 +68,9 @@ const MCBTemplates = {
                         <span class="tooltip-trigger"></span>
                         <div class="tooltip-content">
                             <strong>Severity Score</strong><br>
-                            Frequency × Weight × Impact<br><br>
-                            <strong>Weights:</strong> Checkmate (3.0) • Hanging (2.5) • Forks (2.0) • Material (1.5-1.8) • General (1.0)
+                            Measures how much this blunder type hurts your games.<br><br>
+                            Higher scores = more frequent + more damaging mistakes.<br>
+                            Based on how often you make it and average rating point loss.
                         </div>
                     </div>
                     <small>severity score</small>
