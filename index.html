@@ -22,7 +22,7 @@
   <body>
     <div class="container">
       <header class="header">
-        <div class="logo" onclick="resetPage()">
+        <div class="logo">
           <h1>🎯 MCB</h1>
           <p>Most Common Blunder Analysis</p>
         </div>
@@ -160,10 +160,7 @@
           </div>
 
           <div id="otherBlunders" class="other-blunders">
-            <div
-              class="blunders-section-header"
-              onclick="toggleBlundersSection()"
-            >
+            <div class="blunders-section-header" id="blundersSectionHeader">
               <h4>📊 Blunder by Severity</h4>
               <span id="blundersToggleIcon" class="toggle-icon">▼</span>
             </div>
@@ -175,7 +172,7 @@
           <div id="gamesByBlunders" class="games-by-blunders">
             <div
               class="games-by-blunders-header"
-              onclick="toggleGamesByBlundersSection()"
+              id="gamesByBlundersSectionHeader"
             >
               <h4>🎯 Games with Blunders</h4>
               <span id="gamesByBlundersToggleIcon" class="toggle-icon">▼</span>
@@ -200,6 +197,8 @@
     </div>
 
     <!-- Import JavaScript -->
+    <script src="js/state.js"></script>
+    <script src="js/templates.js"></script>
     <script src="main.js"></script>
   </body>
 </html>
