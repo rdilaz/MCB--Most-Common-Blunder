@@ -1,14 +1,13 @@
 import React, { useEffect } from 'react';
+// Stagewise toolbar (AI-powered UI editing)
+// Only loaded in development builds – the package handles conditional rendering internally
+import { StagewiseToolbar } from '@stagewise/toolbar-react';
+import ReactPlugin from '@stagewise-plugins/react';
 import { MCBProvider, useMCB } from './context/MCBContext';
 import AnalysisForm from './components/forms/AnalysisForm';
 import ProgressBar from './components/ui/ProgressBar';
 import ResultsSection from './components/results/ResultsSection';
 import './styles/main.css';
-
-// TODO: Add stagewise integration when packages are available
-// const StagewiseToolbar = import.meta.env.DEV 
-//   ? React.lazy(() => import('@stagewise/toolbar-react').then(module => ({ default: module.StagewiseToolbar })))
-//   : null;
 
 // Inner App component that has access to MCB context
 const AppContent = () => {
@@ -47,8 +46,20 @@ const AppContent = () => {
     <div className="container">
       <header className="header">
         <div className="logo" onClick={handleLogoClick}>
-          <h1>🎯 MCB</h1>
-          <p>Most Common Blunder Analysis</p>
+          {/* Updated logo with uploaded file */}
+          <img 
+            src="/logo.png" 
+            alt="MCB – Most Common Blunder" 
+            height={80}
+            onError={(e) => {
+              e.target.style.display = 'none';
+              console.warn('Logo image not found');
+            }}
+          />
+          <div className="logo-text">
+            <span className="mcb-title">MCB</span>
+            <p>Most Common Blunder Analysis</p>
+          </div>
         </div>
       </header>
 
@@ -66,6 +77,11 @@ const AppContent = () => {
       <footer className="footer">
         <p>&copy; 2025 MCB Project</p>
       </footer>
+
+      {/* Stagewise AI toolbar – visible only in dev */}
+      {import.meta.env.DEV && (
+        <StagewiseToolbar config={{ plugins: [ReactPlugin] }} />
+      )}
     </div>
   );
 };

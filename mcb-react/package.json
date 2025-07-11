@@ -11,6 +11,8 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@stagewise-plugins/react": "^0.5.1",
+    "@stagewise/toolbar-react": "^0.5.1",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"
   },
