@@ -70,28 +70,16 @@ def register_routes(app: Flask):
     
     @app.route("/")
     def home():
-        """Serve the main HTML page."""
+        """Serve the React app."""
         try:
-            with open('index.html', 'r', encoding='utf-8') as f:
-                html_content = f.read()
-            return html_content
+            return send_from_directory('mcb-react/dist', 'index.html')
         except FileNotFoundError:
             return "Application not found", 404
     
-    @app.route("/styles.css")
-    def serve_css():
-        """Serve the CSS file."""
-        return send_from_directory('.', 'styles.css')
-    
-    @app.route("/main.js")
-    def serve_js():
-        """Serve the JavaScript file."""
-        return send_from_directory('.', 'main.js')
-    
-    @app.route("/js/<filename>")
-    def serve_js_modules(filename):
-        """Serve JavaScript module files from js/ directory."""
-        return send_from_directory('js', filename)
+    @app.route("/<path:filename>")
+    def serve_react_assets(filename):
+        """Serve React build assets."""
+        return send_from_directory('mcb-react/dist', filename)
     
     @app.route("/api/analyze", methods=['POST'])
     @app.limiter.limit(RATE_LIMITS['analysis'])  # Rate limit analysis requests
