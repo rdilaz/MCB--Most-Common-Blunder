@@ -1,5 +1,8 @@
 /* MCB React App - Using Original Excellent Styles */
 
+/* Google Fonts Import */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Sofia+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap');
+
 /* Font Declarations */
 @font-face {
     font-family: 'Augustus';
@@ -55,7 +58,7 @@
 }
 
 body {
-    font-family: 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Playfair Display', serif;
     line-height: 1.6;
     color: var(--text-primary);
     background-image: url('/blackmarbletexture%20(2).jpg');
@@ -64,6 +67,45 @@ body {
     background-attachment: fixed;
     background-repeat: no-repeat;
     min-height: 100vh;
+}
+
+/* Typography Hierarchy */
+/* Sofia Sans for subtle/secondary text */
+label, 
+small, 
+.subtitle,
+.text-secondary,
+.text-muted,
+.game-meta,
+.game-details,
+.occurrence-game-meta,
+.occurrence-game-info,
+.blunder-stat,
+.progress-text,
+.tooltip-content,
+.game-link-small,
+.setting-group small,
+.input-group label,
+.setting-group label,
+.progress-section small,
+.footer {
+    font-family: 'Sofia Sans', sans-serif;
+}
+
+/* Playfair Display for main content (already default via body) */
+h1, h2, h3, h4, h5, h6,
+.hero-stat-header h4,
+.blunder-item-title,
+.game-players,
+.blunder-description,
+.occurrence-move,
+.analyze-btn {
+    font-family: 'Playfair Display', serif;
+}
+
+/* Augustus for logo title only */
+.mcb-title {
+    font-family: 'Augustus', serif;
 }
 
 /* Dark overlay for better text readability */
@@ -105,10 +147,10 @@ body::before {
     padding: 20px;
     border-radius: 12px;
     display: flex;
+    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 20px;
-    flex-wrap: wrap;
+    gap: 15px;
 }
 
 .logo:hover {
@@ -121,6 +163,12 @@ body::before {
     filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.3));
 }
 
+.logo-top {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+}
+
 .logo-text {
     display: flex;
     flex-direction: column;
@@ -129,7 +177,6 @@ body::before {
 }
 
 .mcb-title {
-    font-family: 'Augustus', serif;
     font-size: 4rem;
     font-weight: normal;
     background: linear-gradient(135deg, var(--white-piece) 0%, var(--chess-light) 50%, var(--chess-green) 100%);
@@ -152,11 +199,13 @@ body::before {
 }
 
 .logo p {
+    font-family: 'Sofia Sans', sans-serif;
     font-size: 1.2rem;
     color: var(--text-secondary);
     font-weight: 400;
     letter-spacing: 1px;
     margin: 0;
+    text-align: center;
 }
 
 /* Main Content Area */
@@ -1311,8 +1360,12 @@ body::before {
     }
     
     .logo {
+        gap: 10px;
+    }
+    
+    .logo-top {
         flex-direction: column;
-        gap: 15px;
+        gap: 10px;
     }
     
     .logo img {
@@ -1363,6 +1416,10 @@ body::before {
 }
 
 @media (max-width: 480px) {
+    .logo-top {
+        gap: 8px;
+    }
+    
     .logo img {
         height: 50px;
     }

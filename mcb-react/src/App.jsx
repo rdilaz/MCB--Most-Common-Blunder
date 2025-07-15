@@ -46,20 +46,21 @@ const AppContent = () => {
     <div className="container">
       <header className="header">
         <div className="logo" onClick={handleLogoClick}>
-          {/* Updated logo with uploaded file */}
-          <img 
-            src="/logo.png" 
-            alt="MCB – Most Common Blunder" 
-            height={80}
-            onError={(e) => {
-              e.target.style.display = 'none';
-              console.warn('Logo image not found');
-            }}
-          />
-          <div className="logo-text">
+          {/* Logo and MCB title on same line */}
+          <div className="logo-top">
+            <img 
+              src="/logo.png" 
+              alt="MCB – Most Common Blunder" 
+              height={80}
+              onError={(e) => {
+                e.target.style.display = 'none';
+                console.warn('Logo image not found');
+              }}
+            />
             <span className="mcb-title">MCB</span>
-            <p>Most Common Blunder Analysis</p>
           </div>
+          {/* Subtitle centered below */}
+          <p>Most Common Blunder Analysis</p>
         </div>
       </header>
 
