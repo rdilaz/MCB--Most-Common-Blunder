@@ -1,10 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useMCB } from '../../context/MCBContext';
 import { useAnalysis } from '../../hooks/useAnalysis';
+import Slider from '../ui/Slider';
 
 const AnalysisForm = () => {
   const { settings, updateSettings, validateSettings } = useMCB();
   const { isAnalyzing, startAnalysis } = useAnalysis();
+  const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
 
   const handleInputChange = (field, value) => {
     updateSettings({ [field]: value });
@@ -27,15 +29,14 @@ const AnalysisForm = () => {
     }
   };
 
+  const toggleSettings = () => {
+    setIsSettingsExpanded(!isSettingsExpanded);
+  };
+
   const validation = validateSettings();
 
   return (
     <div className="input-section">
-      <h2>🎮 Chess Analysis</h2>
-      <p className="subtitle">
-        Identify your most common blunders and improve your game
-      </p>
-
       <form onSubmit={handleSubmit}>
         <div className="input-group">
           <label htmlFor="username">Chess.com Username</label>
@@ -51,21 +52,27 @@ const AnalysisForm = () => {
         </div>
 
         {/* Analysis Settings Panel */}
-        <div className="settings-panel">
-          <h3>⚙️ Analysis Settings</h3>
-          <div className="settings-grid">
+        <div className={`settings-panel ${isSettingsExpanded ? 'expanded' : 'collapsed'}`}>
+          <div 
+            className="settings-header" 
+            onClick={toggleSettings}
+            style={{ cursor: 'pointer' }}
+          >
+            <h3>⚙️ Analysis Settings</h3>
+            <span className="toggle-icon">{isSettingsExpanded ? '▲' : '▼'}</span>
+          </div>
+          <div className={`settings-content ${isSettingsExpanded ? '' : 'collapsed'}`}>
+            <div className="settings-grid">
             <div className="setting-group">
               <label htmlFor="gameCount">
                 Number of Games: <span id="gameCountValue">{settings.gameCount}</span>
               </label>
-              <input
-                type="range"
+              <Slider
                 id="gameCount"
-                min="1"
-                max="50"
+                min={1}
+                max={50}
                 value={settings.gameCount}
                 onChange={(e) => handleInputChange('gameCount', parseInt(e.target.value))}
-                className="slider"
               />
               <small>Analyze your most recent games (max 50)</small>
             </div>
@@ -118,14 +125,12 @@ const AnalysisForm = () => {
               <label htmlFor="blunderThreshold">
                 Blunder Threshold: <span id="blunderThresholdValue">{settings.blunderThreshold}</span>%
               </label>
-              <input
-                type="range"
+              <Slider
                 id="blunderThreshold"
-                min="5"
-                max="30"
+                min={5}
+                max={30}
                 value={settings.blunderThreshold}
                 onChange={(e) => handleInputChange('blunderThreshold', parseInt(e.target.value))}
-                className="slider"
               />
               <small>Win probability drop % to be considered a blunder</small>
             </div>
@@ -143,6 +148,7 @@ const AnalysisForm = () => {
               </select>
               <small>Higher depth = more accurate but slower</small>
             </div>
+          </div>
           </div>
         </div>
 

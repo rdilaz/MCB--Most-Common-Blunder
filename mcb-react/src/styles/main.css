@@ -75,7 +75,6 @@ label,
 small, 
 .subtitle,
 .text-secondary,
-.text-muted,
 .game-meta,
 .game-details,
 .occurrence-game-meta,
@@ -188,7 +187,7 @@ body::before {
 }
 
 .logo-image {
-    height: 60px;
+    height: 70px;
     width: auto;
     filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.5));
     transition: transform 0.3s ease;
@@ -260,7 +259,7 @@ body::before {
     }
     
     .logo-image {
-        height: 50px;
+        height: 60px;
     }
     
     .mcb-title {
@@ -279,7 +278,7 @@ body::before {
     }
     
     .logo-image {
-        height: 45px;
+        height: 50px;
     }
     
     .mcb-title {
@@ -405,12 +404,19 @@ body::before {
     backdrop-filter: blur(10px);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 20px;
-    padding: 36px;
-    margin: 36px 0;
+    margin: 24px 0;
     box-shadow: 
         0 4px 20px rgba(0, 0, 0, 0.2),
         inset 0 1px 0 rgba(255, 255, 255, 0.05);
     position: relative;
+}
+
+.settings-panel.expanded {
+    padding: 36px;
+}
+
+.settings-panel.collapsed {
+    padding: 4px 24px;
 }
 
 .settings-panel::before {
@@ -426,12 +432,48 @@ body::before {
         transparent);
 }
 
-.settings-panel h3 {
+.settings-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 16px;
+    transition: all 0.3s ease;
+    border-radius: 12px;
+    margin: -1px; /* Pull to edges for centered hover */
+    position: relative;
+    z-index: 1;
+}
+
+.settings-header:hover {
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: 0 2px 8px rgba(118, 150, 86, 0.2);
+    transform: translateY(-1px);
+}
+
+.settings-header h3 {
     font-size: 1.5rem;
     color: #ffffff;
-    margin-bottom: 28px;
-    text-align: center;
+    margin: 0;
     font-weight: 600;
+}
+
+.toggle-icon {
+    font-size: 1.2rem;
+    color: rgba(245, 245, 245, 0.7);
+    transition: color 0.3s ease;
+}
+
+.settings-content {
+    overflow: hidden;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-height: 2000px;
+    opacity: 1;
+}
+
+.settings-content.collapsed {
+    max-height: 0;
+    opacity: 0;
+    margin-top: 0;
 }
 
 .settings-grid {
@@ -523,7 +565,98 @@ body::before {
     line-height: 1.4;
 }
 
-/* Modern Sliders */
+/* Modern Custom Sliders */
+.slider-container {
+    position: relative;
+    margin: 16px 0;
+}
+
+.slider-track {
+    position: relative;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.slider-progress {
+    height: 100%;
+    background: var(--chess-green);
+    border-radius: 3px;
+    transition: width 0.15s ease;
+    box-shadow: 0 0 10px rgba(118, 150, 86, 0.3);
+}
+
+.slider-input {
+    position: absolute;
+    top: -7px;
+    left: 0;
+    width: 100%;
+    height: 20px;
+    background: transparent;
+    outline: none;
+    -webkit-appearance: none;
+    cursor: pointer;
+    margin: 0;
+}
+
+.slider-input::-webkit-slider-track {
+    width: 100%;
+    height: 6px;
+    background: transparent;
+    border-radius: 3px;
+}
+
+.slider-input::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    cursor: pointer;
+    border: 2px solid var(--chess-green);
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.3),
+        0 0 0 0 rgba(118, 150, 86, 0.3);
+    transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+    position: relative;
+    z-index: 2;
+}
+
+.slider-input::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    box-shadow: 
+        0 4px 12px rgba(0, 0, 0, 0.4),
+        0 0 0 8px rgba(118, 150, 86, 0.15);
+}
+
+.slider-input::-webkit-slider-thumb:active {
+    transform: scale(1.1);
+    box-shadow: 
+        0 2px 8px rgba(0, 0, 0, 0.4),
+        0 0 0 12px rgba(118, 150, 86, 0.1);
+}
+
+.slider-input::-moz-range-track {
+    width: 100%;
+    height: 6px;
+    background: transparent;
+    border-radius: 3px;
+    border: none;
+}
+
+.slider-input::-moz-range-thumb {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    cursor: pointer;
+    border: 2px solid var(--chess-green);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Legacy support for old slider class */
 .slider {
     width: 100%;
     height: 6px;
@@ -536,15 +669,10 @@ body::before {
     overflow: visible;
 }
 
-.slider::-webkit-slider-runnable-track {
-    background: rgba(255, 255, 255, 0.1);
+.slider::-webkit-slider-track {
+    width: 100%;
     height: 6px;
-    border-radius: 3px;
-}
-
-.slider::-moz-range-track {
     background: rgba(255, 255, 255, 0.1);
-    height: 6px;
     border-radius: 3px;
 }
 
@@ -579,6 +707,14 @@ body::before {
         0 0 0 12px rgba(118, 150, 86, 0.1);
 }
 
+.slider::-moz-range-track {
+    width: 100%;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+    border: none;
+}
+
 .slider::-moz-range-thumb {
     width: 20px;
     height: 20px;
@@ -606,7 +742,7 @@ body::before {
     box-shadow: 
         0 4px 16px rgba(118, 150, 86, 0.3),
         0 2px 4px rgba(0, 0, 0, 0.2);
-    margin-top: 40px;
+    margin-top: 24px;
     text-transform: uppercase;
     letter-spacing: 1px;
 }
@@ -1815,7 +1951,7 @@ body::before {
   }
 }
 
-/* Games with Blunders – improve spacing so rows aren’t cramped */
+/* Games with Blunders – improve spacing so rows aren't cramped */
 .games-by-blunders-list {
   gap: 20px; /* increase vertical space between game cards */
 }
@@ -1834,7 +1970,7 @@ body::before {
   max-height: 650px;             /* fixed viewport height so list can scroll */
 }
 
-/* Each game card shouldn’t clip its children (tooltips etc.) */
+/* Each game card shouldn't clip its children (tooltips etc.) */
 .game-blunder-item {
   overflow: visible;             /* was hidden – caused content to be cut off */
 }
@@ -1848,5 +1984,20 @@ body::before {
   /* Slightly shorter on small screens so header/footer remain visible */
   .games-by-blunders-content {
     max-height: 60vh;
+  }
+} 
+
+/* Add media query for dynamic spacing in half-screen mode */
+@media (max-width: 768px) {
+  .settings-grid {
+    gap: 16px;
+  }
+
+  .setting-group {
+    padding: 16px;
+  }
+
+  .settings-panel.expanded {
+    padding: 24px;
   }
 } 
