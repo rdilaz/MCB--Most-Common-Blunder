@@ -144,7 +144,7 @@ body::before {
     backdrop-filter: blur(20px);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 24px;
-    margin: 0 40px 40px;
+    margin: 24px 40px 40px;
     box-shadow: 
         0 8px 32px rgba(0, 0, 0, 0.3),
         inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -246,7 +246,7 @@ body::before {
 @media (max-width: 768px) {
     .header {
         padding: 20px 0;
-        margin: 0 20px 32px;
+        margin: 20px 20px 32px;
         border-radius: 20px;
     }
     
@@ -274,7 +274,7 @@ body::before {
 
 @media (max-width: 480px) {
     .header {
-        margin: 0 12px 24px;
+        margin: 16px 12px 24px;
         border-radius: 16px;
     }
     
@@ -536,14 +536,16 @@ body::before {
     overflow: visible;
 }
 
-.slider::before {
-    content: '';
-    position: absolute;
-    height: 100%;
-    background: var(--chess-green);
+.slider::-webkit-slider-runnable-track {
+    background: rgba(255, 255, 255, 0.1);
+    height: 6px;
     border-radius: 3px;
-    width: var(--slider-progress, 50%);
-    pointer-events: none;
+}
+
+.slider::-moz-range-track {
+    background: rgba(255, 255, 255, 0.1);
+    height: 6px;
+    border-radius: 3px;
 }
 
 .slider::-webkit-slider-thumb {
