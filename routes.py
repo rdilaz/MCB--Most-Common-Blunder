@@ -32,8 +32,9 @@ logger = logging.getLogger(__name__)
 # Create service instances
 analysis_service = create_analysis_service()
 
-# Daily usage tracking (in production, this would use Redis or database)
-daily_usage = {}
+# Redis-based rate limiting (production-ready)
+from security.rate_limiter import RateLimiter
+rate_limiter = RateLimiter()
 
 # Timeout handlers for production
 def timeout_handler(signum, frame):
@@ -113,30 +114,27 @@ def register_routes(app: Flask):
             
             # Validate inputs
             if not session_id or not username:
-                return jsonify(create_error_response('Session ID and username are required'))
+                return jsonify(create_error_response('Session ID and username are required')), 400
             
-            if not validate_username(username):
-                return jsonify(create_error_response('Invalid username format'))
+            username_valid, username_error = validate_username(username)
+            if not username_valid:
+                return jsonify(create_error_response(username_error)), 400
             
             # SECURITY: Enhanced usage limits 
             if game_count > MAX_GAMES_ALLOWED:
                 return jsonify(create_error_response(f'Maximum {MAX_GAMES_ALLOWED} games allowed'))
             
-            # SECURITY: Daily usage tracking
-            daily_limit_key = f"daily_usage_{username}_{time.strftime('%Y-%m-%d')}"
-            current_usage = daily_usage.get(daily_limit_key, 0)
-            
-            if current_usage + game_count > DAILY_GAME_LIMIT:
-                remaining = max(0, DAILY_GAME_LIMIT - current_usage)
+            # SECURITY: Redis-based rate limiting
+            allowed, usage_info = rate_limiter.check_daily_limit(username, game_count, DAILY_GAME_LIMIT)
+            if not allowed:
                 return jsonify({
-                    'error': f'Daily limit reached. You can analyze {remaining} more games today.',
-                    'daily_limit': DAILY_GAME_LIMIT,
-                    'used_today': current_usage,
-                    'remaining': remaining
+                    'error': f'Daily limit reached. You can analyze {usage_info["remaining"]} more games today.',
+                    **usage_info
                 }), 429
             
-            # Update usage counter
-            daily_usage[daily_limit_key] = current_usage + game_count
+            # Check per-minute rate limit
+            if not rate_limiter.check_minute_limit(username):
+                return jsonify({'error': 'Too many requests per minute. Please wait before trying again.'}), 429
             
             # Map analysis depth to engine think time (production-optimized values)
             engine_think_time = ANALYSIS_DEPTH_MAPPING.get(analysis_depth, 0.08)
@@ -248,9 +246,7 @@ def register_routes(app: Flask):
                 'message': f'Analysis started for {username}',
                 'optimization': optimization_info,
                 'security': {
-                    'daily_limit': DAILY_GAME_LIMIT,
-                    'used_today': current_usage,
-                    'remaining': DAILY_GAME_LIMIT - current_usage - game_count,
+                    **usage_info,
                     'max_games_per_request': MAX_GAMES_ALLOWED
                 }
             })
@@ -334,12 +330,14 @@ def register_routes(app: Flask):
     @app.route("/health")
     def health_check():
         """Health check endpoint for monitoring."""
+        rate_limiter_health = rate_limiter.health_check()
         return jsonify({
             'status': 'healthy',
             'service': 'MCB Analysis API',
             'version': '1.0.0',
             'concurrent_sessions': len(progress_queues),
-            'max_concurrent': MAX_CONCURRENT_SESSIONS
+            'max_concurrent': MAX_CONCURRENT_SESSIONS,
+            'rate_limiter': rate_limiter_health
         })
     
     # Error handlers with production-ready responses

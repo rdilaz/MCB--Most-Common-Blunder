@@ -8,8 +8,10 @@ import time
 import json
 import logging
 import uuid
+import html
 from typing import Dict, List, Any, Optional, Union
 from datetime import datetime
+from urllib.parse import quote
 
 from config import (
     USERNAME_PATTERN, DANGEROUS_PATTERNS, CATEGORY_WEIGHTS,
@@ -23,27 +25,64 @@ logger = logging.getLogger(__name__)
 # PRODUCTION VALIDATION FUNCTIONS
 # ========================================
 
-def validate_username(username: str) -> bool:
+def validate_username(username: str) -> tuple[bool, Optional[str]]:
     """
-    Validate Chess.com username with production security checks.
-    Based on app_production.py validate_username function.
+    Comprehensive username validation with detailed error reporting.
     
     Args:
         username (str): Username to validate
         
     Returns:
-        bool: True if username is valid and secure
+        tuple: (is_valid, error_message)
     """
-    if not username or len(username) > 50 or len(username) < 3:
-        return False
+    if not username:
+        return False, "Username is required"
     
-    # Chess.com usernames: 3-25 chars, alphanumeric + underscore + hyphen, case insensitive
-    if not re.match(USERNAME_PATTERN, username):
-        return False
+    # Length validation
+    if len(username) < 3:
+        return False, "Username must be at least 3 characters"
+    if len(username) > 25:
+        return False, "Username must be 25 characters or less"
     
-    # Additional security: no SQL injection patterns
+    # Character validation (Chess.com format)
+    if not re.match(r'^[a-zA-Z0-9_-]+$', username):
+        return False, "Username can only contain letters, numbers, underscores, and hyphens"
+    
+    # Security checks
     username_lower = username.lower()
-    return not any(pattern in username_lower for pattern in DANGEROUS_PATTERNS)
+    dangerous_patterns = [
+        r'script', r'javascript', r'<', r'>', r'&', r'"', r"'",
+        r'drop\s+table', r'union\s+select', r'insert\s+into',
+        r'delete\s+from', r'update\s+set', r'--', r'/\*', r'\*/',
+        r'exec\s*\(', r'eval\s*\(', r'system\s*\('
+    ]
+    
+    for pattern in dangerous_patterns:
+        if re.search(pattern, username_lower):
+            return False, "Username contains invalid characters"
+    
+    return True, None
+
+def sanitize_input(input_str: str) -> str:
+    """
+    Sanitize input string for safe processing.
+    
+    Args:
+        input_str (str): Input string to sanitize
+        
+    Returns:
+        str: Sanitized string safe for processing
+    """
+    if not input_str:
+        return ""
+    
+    # HTML encode to prevent XSS
+    sanitized = html.escape(input_str)
+    
+    # URL encode for additional safety
+    sanitized = quote(sanitized, safe='')
+    
+    return sanitized
 
 def validate_analysis_settings(data: Dict[str, Any]) -> tuple[bool, Optional[str]]:
     """
@@ -66,8 +105,9 @@ def validate_analysis_settings(data: Dict[str, Any]) -> tuple[bool, Optional[str
     
     # Validate username
     username = data.get('username', '').strip()
-    if not validate_username(username):
-        return False, "Invalid username format"
+    username_valid, username_error = validate_username(username)
+    if not username_valid:
+        return False, username_error
     
     # Validate game count
     game_count = data.get('gameCount', 20)
@@ -444,4 +484,107 @@ def get_blunder_description(category: str) -> str:
     return BLUNDER_GENERAL_DESCRIPTIONS.get(
         category, 
         f"You frequently made {category.lower()} errors during your games."
-    ) 
+    )
+
+# ========================================
+# SAFE FILE OPERATIONS
+# ========================================
+
+def safe_file_operations(filename: str) -> str:
+    """
+    Safely handle file operations with proper validation.
+    
+    Args:
+        filename (str): Filename to sanitize
+        
+    Returns:
+        str: Safe file path within temporary directory
+        
+    Raises:
+        ValueError: If file path is invalid or unsafe
+    """
+    import os
+    import tempfile
+    from pathlib import Path
+    
+    # Use temporary directory for all file operations
+    temp_dir = Path(tempfile.gettempdir()) / "mcb_analysis"
+    temp_dir.mkdir(exist_ok=True)
+    
+    # Sanitize filename - only allow alphanumeric, underscore, hyphen, and dot
+    safe_filename = "".join(c for c in filename if c.isalnum() or c in ('-', '_', '.'))
+    
+    # Ensure filename is not empty after sanitization
+    if not safe_filename:
+        raise ValueError("Invalid filename - no safe characters remaining")
+    
+    # Create safe path within temp directory
+    safe_path = temp_dir / safe_filename
+    
+    # Ensure path is within temp directory (prevent path traversal)
+    try:
+        safe_path.resolve().relative_to(temp_dir.resolve())
+    except ValueError:
+        raise ValueError("Invalid file path - path traversal detected")
+    
+    return str(safe_path)
+
+def safe_file_removal(filepath: str) -> bool:
+    """
+    Safely remove a file with proper validation.
+    
+    Args:
+        filepath (str): Path to file to remove
+        
+    Returns:
+        bool: True if file was removed successfully, False otherwise
+    """
+    import os
+    import tempfile
+    from pathlib import Path
+    
+    try:
+        file_path = Path(filepath)
+        temp_dir = Path(tempfile.gettempdir()) / "mcb_analysis"
+        
+        # Ensure file is within our temp directory
+        file_path.resolve().relative_to(temp_dir.resolve())
+        
+        # Check if file exists and remove it
+        if file_path.exists():
+            file_path.unlink()
+            logger.info(f"Safely removed file: {filepath}")
+            return True
+        else:
+            logger.debug(f"File not found for removal: {filepath}")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Error removing file {filepath}: {e}")
+        return False
+
+def safe_file_check(filepath: str) -> bool:
+    """
+    Safely check if a file exists with proper validation.
+    
+    Args:
+        filepath (str): Path to file to check
+        
+    Returns:
+        bool: True if file exists and is safe, False otherwise
+    """
+    import tempfile
+    from pathlib import Path
+    
+    try:
+        file_path = Path(filepath)
+        temp_dir = Path(tempfile.gettempdir()) / "mcb_analysis"
+        
+        # Ensure file is within our temp directory
+        file_path.resolve().relative_to(temp_dir.resolve())
+        
+        return file_path.exists()
+        
+    except Exception as e:
+        logger.error(f"Error checking file {filepath}: {e}")
+        return False 

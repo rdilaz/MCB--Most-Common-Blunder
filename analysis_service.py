@@ -22,9 +22,11 @@ from config import (
     BLUNDER_EDUCATIONAL_DESCRIPTIONS, BASE_IMPACT_VALUES,
     CATEGORY_WEIGHTS, ESTIMATED_MOVES_PER_GAME, OPTIMIZATION_DESCRIPTIONS
 )
+from engines.stockfish_pool import StockfishPool
 from utils import (
     sanitize_blunders_for_json, format_game_metadata, 
-    calculate_category_weight, Timer, log_error
+    calculate_category_weight, Timer, log_error,
+    safe_file_operations, safe_file_removal, safe_file_check
 )
 from progress_tracking import ProgressTracker
 
@@ -37,6 +39,13 @@ class AnalysisService:
     def __init__(self):
         self.stockfish_path = STOCKFISH_PATH
         self.blunder_threshold = BLUNDER_THRESHOLD
+        self.engine_pool = None  # Initialize lazily
+        
+    def _get_engine_pool(self):
+        """Get the engine pool, creating it if necessary"""
+        if self.engine_pool is None:
+            self.engine_pool = StockfishPool(self.stockfish_path, pool_size=2)
+        return self.engine_pool
     
     def analyze_game_optimized(self, game, engine, target_user, blunder_threshold, engine_think_time, debug_mode):
         """
@@ -112,9 +121,8 @@ class AnalysisService:
                 }
                 
             finally:
-                # Clean up temporary file
-                if os.path.exists(pgn_filename):
-                    os.unlink(pgn_filename)
+                # Clean up temporary file safely
+                safe_file_removal(pgn_filename)
                     
         except Exception as e:
             log_error(f"Analysis failed: {str(e)}", tracker.session_id, e)
@@ -141,117 +149,114 @@ class AnalysisService:
         """
         step_start = time.time()
         
-        # Initialize Stockfish engine
+        # Get engine from pool
         try:
-            with Timer("Engine initialization", logger):
+            with Timer("Engine acquisition", logger):
                 if progress_tracker:
-                    progress_tracker.update_progress(35, "🔧 Initializing Stockfish engine...")
+                    progress_tracker.update_progress(35, "🔧 Getting Stockfish engine from pool...")
                 
-                engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
+                engine = self._get_engine_pool().get_engine()
+                if not engine:
+                    raise RuntimeError("No Stockfish engines available")
                 
                 if progress_tracker:
-                    progress_tracker.update_progress(40, f"✅ Engine initialized")
+                    progress_tracker.update_progress(40, f"✅ Engine acquired from pool")
                     
         except Exception as e:
             if progress_tracker:
-                progress_tracker.set_error(f"❌ Engine initialization failed: {str(e)}")
-            return {"error": f"Could not initialize Stockfish engine: {str(e)}"}
+                progress_tracker.set_error(f"❌ Engine acquisition failed: {str(e)}")
+            return {"error": f"Could not get Stockfish engine: {str(e)}"}
 
         # Process games and collect blunders
         all_blunders = []
         games_analyzed = 0
-        total_games = 0
         
         try:
-            # Read PGN content first
-            with open(pgn_file_path, 'r', encoding='utf-8') as f:
-                pgn_content = f.read()
-            
-            # First pass: count total games using string IO
-            temp_io = io.StringIO(pgn_content)
-            while True:
-                game = chess.pgn.read_game(temp_io)
-                if game is None:
-                    break
-                total_games += 1
-            
-            if progress_tracker:
-                progress_tracker.update_progress(45, f"📖 Found {total_games} game(s) to analyze")
-            
-            # Second pass: analyze games using optimized function
-            pgn_io = io.StringIO(pgn_content)
-            
-            with Timer(f"Game analysis ({total_games} games)", logger):
-                while True:
-                    game = chess.pgn.read_game(pgn_io)
-                    if game is None:
-                        break
-                    
-                    games_analyzed += 1
-                    
-                    # Get game info for progress
-                    white_player = game.headers.get("White", "Unknown")
-                    black_player = game.headers.get("Black", "Unknown")
-                    
-                    # Calculate progress (45% to 85% range)
-                    game_progress = 45 + ((games_analyzed - 1) / total_games) * 40
-                    
+            # Single-pass PGN processing with memory optimization
+            with Timer(f"Single-pass PGN analysis", logger):
+                with open(pgn_file_path, 'r', encoding='utf-8') as f:
                     if progress_tracker:
-                        progress_tracker.update_progress(
-                            game_progress, 
-                            f"🎯 Analyzing game #{games_analyzed}: {white_player} vs {black_player}"
-                        )
+                        progress_tracker.update_progress(45, f"📖 Starting single-pass PGN analysis...")
                     
-                    # Use optimized analysis function
-                    game_blunders = self.analyze_game_optimized(
-                        game=game,
-                        engine=engine,
-                        target_user=username,
-                        blunder_threshold=blunder_threshold,
-                        engine_think_time=engine_think_time,
-                        debug_mode=False
-                    )
-                    
-                    # Add game metadata to each blunder for enhanced frontend display
-                    for blunder in game_blunders:
-                        blunder['game_number'] = games_analyzed
-                        blunder['game_white'] = white_player
-                        blunder['game_black'] = black_player
-                        blunder['target_player'] = username
+                    while True:
+                        game = chess.pgn.read_game(f)
+                        if game is None:
+                            break
                         
-                        # Use real game metadata if available
-                        if games_metadata and len(games_metadata) >= games_analyzed:
-                            game_meta = games_metadata[games_analyzed - 1]  # 0-indexed
-                            blunder['game_url'] = game_meta.get('url', '')
-                            blunder['game_date'] = game_meta.get('date', 'Unknown date')
-                            blunder['game_time_class'] = game_meta.get('time_class', 'unknown')
-                            blunder['game_rated'] = game_meta.get('rated', False)
-                        else:
-                            # Fallback to defaults if metadata not available
-                            blunder['game_url'] = ''
-                            blunder['game_date'] = 'Unknown date'
-                            blunder['game_time_class'] = 'unknown'
-                            blunder['game_rated'] = False
+                        games_analyzed += 1
+                        
+                        # Get game info for progress
+                        white_player = game.headers.get("White", "Unknown")
+                        black_player = game.headers.get("Black", "Unknown")
+                        
+                        # Calculate progress (45% to 85% range)
+                        # Use games_metadata length as estimate for total games if available
+                        estimated_total = len(games_metadata) if games_metadata else games_analyzed + 10
+                        game_progress = 45 + (min(games_analyzed, estimated_total) / estimated_total) * 40
+                        
+                        if progress_tracker:
+                            progress_tracker.update_progress(
+                                game_progress, 
+                                f"🎯 Analyzing game #{games_analyzed}: {white_player} vs {black_player}"
+                            )
+                        
+                        # Analyze game immediately instead of storing
+                        game_blunders = self.analyze_game_optimized(
+                            game=game,
+                            engine=engine,
+                            target_user=username,
+                            blunder_threshold=blunder_threshold,
+                            engine_think_time=engine_think_time,
+                            debug_mode=False
+                        )
+                        
+                        # Add game metadata to each blunder for enhanced frontend display
+                        for blunder in game_blunders:
+                            blunder['game_number'] = games_analyzed
+                            blunder['game_white'] = white_player
+                            blunder['game_black'] = black_player
+                            blunder['target_player'] = username
+                            
+                            # Use real game metadata if available
+                            if games_metadata and len(games_metadata) >= games_analyzed:
+                                game_meta = games_metadata[games_analyzed - 1]  # 0-indexed
+                                blunder['game_url'] = game_meta.get('url', '')
+                                blunder['game_date'] = game_meta.get('date', 'Unknown date')
+                                blunder['game_time_class'] = game_meta.get('time_class', 'unknown')
+                                blunder['game_rated'] = game_meta.get('rated', False)
+                            else:
+                                # Fallback to defaults if metadata not available
+                                blunder['game_url'] = ''
+                                blunder['game_date'] = 'Unknown date'
+                                blunder['game_time_class'] = 'unknown'
+                                blunder['game_rated'] = False
+                        
+                        all_blunders.extend(game_blunders)
+                        
+                        # Update progress every 5 games for better performance
+                        if games_analyzed % 5 == 0 and progress_tracker:
+                            final_game_progress = 45 + (games_analyzed / estimated_total) * 40
+                            progress_tracker.update_progress(
+                                final_game_progress,
+                                f"✅ Analyzed {games_analyzed} games, found {len(game_blunders)} blunder(s) in latest game"
+                            )
                     
-                    all_blunders.extend(game_blunders)
-                    
-                    # Update progress
-                    final_game_progress = 45 + (games_analyzed / total_games) * 40
+                    # Final progress update
                     if progress_tracker:
                         progress_tracker.update_progress(
-                            final_game_progress,
-                            f"✅ Game #{games_analyzed} complete: found {len(game_blunders)} blunder(s)"
+                            85,
+                            f"✅ Single-pass analysis complete: {games_analyzed} games analyzed, {len(all_blunders)} blunders found"
                         )
                 
         except FileNotFoundError:
-            engine.quit()
+            self._get_engine_pool().return_engine(engine)
             return {"error": f"Could not find PGN file: {pgn_file_path}"}
         except Exception as e:
-            engine.quit()
+            self._get_engine_pool().return_engine(engine)
             return {"error": f"Error processing games: {str(e)}"}
         finally:
-            # Always close the engine
-            engine.quit()
+            # Always return the engine to the pool
+            self._get_engine_pool().return_engine(engine)
 
         # Process results
         if progress_tracker:
@@ -541,21 +546,12 @@ class AnalysisService:
                     return pgn_content, games_metadata
                     
                 finally:
-                    # Clean up downloaded files after reading
-                    try:
-                        if os.path.exists(pgn_filename):
-                            os.remove(pgn_filename)
-                            logger.info(f"Cleaned up PGN file: {pgn_filename}")
-                        
-                        # Also clean up metadata file
-                        metadata_filename = pgn_filename.replace('.pgn', '_metadata.json')
-                        if os.path.exists(metadata_filename):
-                            os.remove(metadata_filename)
-                            logger.info(f"Cleaned up metadata file: {metadata_filename}")
-                            
-                    except Exception as cleanup_error:
-                        logger.warning(f"Could not clean up files: {cleanup_error}")
-                        # Don't fail the analysis if cleanup fails
+                    # Clean up downloaded files after reading (safely)
+                    safe_file_removal(pgn_filename)
+                    
+                    # Also clean up metadata file safely
+                    metadata_filename = pgn_filename.replace('.pgn', '_metadata.json')
+                    safe_file_removal(metadata_filename)
                 
             except Exception as e:
                 tracker.set_error(f"Error fetching games: {str(e)}")
