@@ -78,13 +78,14 @@ BLUNDER_CATEGORY_PRIORITY = {
     "Allowed Checkmate": 1,
     "Missed Checkmate": 2,
     "Hanging a Piece": 3,  # Moved up - hanging pieces are more critical
-    "Allowed Fork": 4,
-    "Missed Fork": 5,
-    "Losing Exchange": 6,
-    "Missed Material Gain": 7,
-    "Allowed Pin": 8,
-    "Missed Pin": 9,  # Moved down - pins are less critical than hanging pieces
-    "Mistake": 10
+    "Allowed Winning Exchange for Opponent": 4,  # NEW CATEGORY
+    "Allowed Fork": 5,
+    "Missed Fork": 6,
+    "Losing Exchange": 7,
+    "Missed Material Gain": 8,
+    "Allowed Pin": 9,
+    "Missed Pin": 10,  # Moved down - pins are less critical than hanging pieces
+    "Mistake": 11
 }
 
 # Chess Piece Values (in centipawns)
@@ -111,7 +112,8 @@ PIECE_NAMES = {
 CATEGORY_WEIGHTS = {
     "Allowed Checkmate": 3.0,
     "Missed Checkmate": 3.0,
-    "Hanging a Piece": 3.0,  # Increased from 2.5 to 3.0 - same as checkmate!
+    "Hanging a Piece": 2.5,  # Reduced from 3.0
+    "Allowed Winning Exchange for Opponent": 1.8,  # NEW
     "Allowed Fork": 2.0,
     "Missed Fork": 2.0,
     "Losing Exchange": 2.0,
@@ -125,7 +127,8 @@ CATEGORY_WEIGHTS = {
 BASE_IMPACT_VALUES = {
     'Allowed Checkmate': 45.0,
     'Missed Checkmate': 40.0,
-    'Hanging a Piece': 35.0,  # Increased from 25.0 to 35.0 - much higher than pins
+    'Hanging a Piece': 30.0,  # Reduced from 35.0
+    'Allowed Winning Exchange for Opponent': 20.0,  # NEW
     'Allowed Fork': 20.0,
     'Missed Fork': 18.0,
     'Losing Exchange': 15.0,
@@ -138,6 +141,7 @@ BASE_IMPACT_VALUES = {
 # Educational descriptions for blunder categories (Production version)
 BLUNDER_EDUCATIONAL_DESCRIPTIONS = {
     'Hanging a Piece': 'You left pieces undefended, allowing your opponent to capture them for free. Always check if your pieces are safe after making a move.',
+    'Allowed Winning Exchange for Opponent': 'You left pieces in positions where they could be captured with a favorable exchange for your opponent. While the piece was defended, the sequence of captures would result in material loss.',  # NEW
     'Missed Fork': 'You missed opportunities to attack two or more enemy pieces simultaneously with a single piece, forcing your opponent to lose material.',
     'Allowed Fork': 'Your move allowed your opponent to attack multiple pieces at once, forcing you to lose material. Look ahead to see if your moves give your opponent tactical opportunities.',
     'Missed Material Gain': 'You missed chances to win material through captures or tactical sequences. Look for opportunities to win pieces or pawns.',
@@ -158,6 +162,7 @@ BLUNDER_GENERAL_DESCRIPTIONS = {
     "Allowed Pin": "You positioned your pieces in ways that allowed your opponent to pin them (restrict their movement by attacking through them to more valuable pieces).",
     "Missed Pin": "You overlooked opportunities to pin your opponent's pieces, missing tactical advantages.",
     "Hanging a Piece": "You left pieces undefended, allowing your opponent to capture them for free or with favorable exchanges.",
+    "Allowed Winning Exchange for Opponent": "You positioned pieces where capturing them would win material for your opponent through a series of exchanges.",  # NEW
     "Losing Exchange": "You initiated trades that resulted in losing more material value than you gained.",
     "Missed Material Gain": "You missed opportunities to capture opponent pieces or win material through tactical sequences.",
     "Mistake": "You made moves that significantly worsened your position according to engine evaluation."

@@ -8,8 +8,8 @@ import time
 
 # ---- Constants ----
 STOCKFISH_PATH_DEFAULT = os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe")
-BLUNDER_THRESHOLD_DEFAULT = 15
-ENGINE_THINK_TIME_DEFAULT = 0.1
+BLUNDER_THRESHOLD_DEFAULT = 5.0  # Lowered for better detection (was 15)
+ENGINE_THINK_TIME_DEFAULT = 0.08  # Changed to balanced (was 0.1)
 BLUNDER_CATEGORY_PRIORITY = {
     "Allowed Checkmate": 1,
     "Missed Checkmate": 2,
@@ -230,16 +230,15 @@ def enhanced_blunder_heuristics(board_before, move_played, best_move_info, engin
     if current_eval:
         abs_eval = abs(current_eval)
         
-        # Skip analysis in clearly decided positions
-        if abs_eval > 800:  # More than 8 pawns advantage
-            if debug_mode: print(f"[DEBUG] Enhanced 1 - Position decided ({abs_eval}cp), skipping analysis")
-            return False
+        # FIXED: Don't skip analysis for mate positions - these are critical!
+        best_move_eval = best_move_info["score"].pov(turn_color)
+        if best_move_eval.is_mate():
+            if debug_mode: print(f"[DEBUG] Enhanced 1 - Mate position detected, continuing analysis")
+            return True
         
-        # For quiet moves in equal positions, use stricter thresholds
-        if (abs_eval < 50 and 
-            not board_before.is_capture(move_played) and 
-            not board_before.gives_check(move_played)):
-            if debug_mode: print(f"[DEBUG] Enhanced 1 - Quiet move in equal position, skipping")
+        # Skip analysis in clearly decided positions (but not mate) - increased threshold
+        if abs_eval > 1200:  # More than 12 pawns advantage (was 800)
+            if debug_mode: print(f"[DEBUG] Enhanced 1 - Position decided ({abs_eval}cp), skipping analysis")
             return False
     
     # NEW HEURISTIC 2: Move type filtering for fast mode
@@ -250,24 +249,43 @@ def enhanced_blunder_heuristics(board_before, move_played, best_move_info, engin
             if debug_mode: print(f"[DEBUG] Enhanced 2 - Fast mode + simple position ({legal_moves_count} moves), skipping")
             return False
     
-    # NEW HEURISTIC 3: Opening/Endgame filtering
+    # NEW HEURISTIC 3: Opening/Endgame filtering - DISABLED for test positions
+    # FIXED: Don't filter opening moves when testing specific positions
     move_count = len(list(board_before.move_stack))
-    if move_count < 20:  # Opening phase
-        # Skip analysis of obvious developing moves
-        piece_moved = board_before.piece_at(move_played.from_square)
-        if (piece_moved and
-            piece_moved.piece_type in [chess.KNIGHT, chess.BISHOP] and
-            not board_before.is_capture(move_played)):
-            if debug_mode: print(f"[DEBUG] Enhanced 3 - Opening development move, skipping")
+    if move_count < 10:  # Only very early opening (was 20)
+        # Only skip truly obvious moves like castling
+        if move_played in [chess.Move.from_uci("e1g1"), chess.Move.from_uci("e1c1"),  
+                           chess.Move.from_uci("e8g8"), chess.Move.from_uci("e8c8")]:
+            if debug_mode: print(f"[DEBUG] Enhanced 3 - Castling in opening, skipping")
             return False
     
-    # NEW HEURISTIC 4: Piece activity check
+    # NEW HEURISTIC 4: Piece activity check  
+    # FIXED: Don't skip castling if there are hanging pieces detected
     if not board_before.is_capture(move_played):
-        # Skip analysis of obviously good moves (castling)
-        if move_played in [chess.Move.from_uci("e1g1"), chess.Move.from_uci("e1c1"),  # White castling
-                           chess.Move.from_uci("e8g8"), chess.Move.from_uci("e8c8")]:  # Black castling
-            if debug_mode: print(f"[DEBUG] Enhanced 4 - Castling move, skipping")
-            return False
+        # Only skip castling if no pieces are hanging
+        is_castling = move_played in [chess.Move.from_uci("e1g1"), chess.Move.from_uci("e1c1"),  # White castling
+                                     chess.Move.from_uci("e8g8"), chess.Move.from_uci("e8c8")]  # Black castling
+        if is_castling:
+            # Check if castling leaves pieces hanging
+            board_after_temp = board_before.copy()
+            board_after_temp.push(move_played)
+            hanging_after_castling = False
+            for square in chess.SQUARES:
+                piece = board_after_temp.piece_at(square)
+                if piece and piece.color == turn_color:
+                    attackers = board_after_temp.attackers(not turn_color, square)
+                    if attackers:
+                        defenders = board_after_temp.attackers(turn_color, square)
+                        if len(defenders) == 0:  # Truly hanging
+                            hanging_after_castling = True
+                            break
+            
+            if not hanging_after_castling:
+                if debug_mode: print(f"[DEBUG] Enhanced 4 - Safe castling move, skipping")
+                return False
+            else:
+                if debug_mode: print(f"[DEBUG] Enhanced 4 - Castling but leaves pieces hanging, analyzing")
+                return True
     
     # NEW HEURISTIC 5: Endgame material considerations
     total_material = sum(len(board_before.pieces(piece_type, color)) * [0, 1, 3, 3, 5, 9, 0][piece_type]
@@ -317,7 +335,7 @@ def check_for_missed_material_gain(board_before, best_move_info, move_played, de
     
     if board_before.is_capture(best_move): # check if best move is a capture
         see_value = see(board_before, best_move) # calculate static exchange evaluation
-        if see_value > 100: # if capture is worth more than 100 points (more than a pawn)
+        if see_value >= 100: # if capture is worth at least 100 points (a pawn or more)
             captured_piece = board_before.piece_at(best_move.to_square) # get captured piece
             piece_name = PIECE_NAMES.get(captured_piece.piece_type, "material") if captured_piece else "material" # get piece name
             best_move_san = board_before.san(best_move) # convert move to SAN format
@@ -353,199 +371,39 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
             if debug_mode: print(f"[DEBUG] Losing exchange detected with SEE value: {see_value}") # debug output
             return {"category": "Losing Exchange", "move_number": actual_move_number, "description": description, "punishing_move": None} # return blunder dict
     
-    # Check for hanging pieces using improved SEE logic
-    hanging_pieces = [] # list to store hanging pieces with their tactical significance
-    
-    if debug_mode: print(f"[DEBUG] Checking for hanging pieces after move {move_played_san}...")
-    
-    for square in chess.SQUARES: # iterate over all squares
-        piece = board_after.piece_at(square) # get piece at square
-        if piece and piece.color == turn_color: # check if its player's piece 
-            if debug_mode: print(f"[DEBUG]   Checking {PIECE_NAMES.get(piece.piece_type, 'piece')} on {chess.square_name(square)}")
-            
-            attackers = board_after.attackers(not turn_color, square) # get attackers of that square
-            if attackers: # if there are attackers
-                defenders = board_after.attackers(turn_color, square) # get defenders of that square
-                defenders_before = board_before.attackers(turn_color, square) # get defenders before the move
-                defenders_changed = len(defenders) != len(defenders_before) # check if defenders changed
-                
-                if debug_mode: 
-                    print(f"[DEBUG]     Attackers: {len(attackers)}, Defenders: {len(defenders)} (was {len(defenders_before)})")
-                    if defenders_changed:
-                        print(f"[DEBUG]     ** Defenders changed due to move! **")
-                
-                lva_square = min(attackers, key=lambda s: PIECE_VALUES.get(board_after.piece_at(s).piece_type, 0)) # find least valuable attacker
-                lva_piece = board_after.piece_at(lva_square) # get lva piece
-                if not lva_piece: continue # safety, if no lva piece, continue
-                
-                capture_move = chess.Move(lva_square, square) # create capture move
-                if lva_piece.piece_type == chess.PAWN and chess.square_rank(square) in [0, 7]: # if pawn promotion, assume promotion to queen
-                    capture_move.promotion = chess.QUEEN # promote to queen
-                
-                piece_value = PIECE_VALUES.get(piece.piece_type, 0) # get value of piece
-                see_value = see(board_after, capture_move) # calculate static exchange evaluation
-                
-                if debug_mode: print(f"[DEBUG]     SEE value: {see_value}, Piece value: {piece_value}")
-                
-                # Get thresholds based on piece type
-                if piece.piece_type == chess.PAWN:
-                    hanging_threshold = 50  # For pawns, need to win at least 50 centipawns
-                elif piece.piece_type in [chess.KNIGHT, chess.BISHOP]:
-                    hanging_threshold = 150  # For minor pieces, need to win at least 150 centipawns
-                elif piece.piece_type == chess.ROOK:
-                    hanging_threshold = 200  # For rooks, need to win at least 200 centipawns
-                elif piece.piece_type == chess.QUEEN:
-                    hanging_threshold = 400  # For queens, need to win at least 400 centipawns
-                else:
-                    hanging_threshold = 100  # Default threshold
-                
-                if debug_mode: print(f"[DEBUG]     Threshold: {hanging_threshold}")
-                
-                # Check if the piece is truly hanging
-                if see_value >= hanging_threshold:
-                    if debug_mode: print(f"[DEBUG]     SEE value ({see_value}) >= threshold ({hanging_threshold}), checking for tactical responses...")
-                    # ENHANCED: Check if the opponent's capture would be a blunder for them
-                    # Simulate the opponent capturing this piece
-                    board_after_capture = board_after.copy()
-                    board_after_capture.push(capture_move)
-                    
-                    # Check if we have a strong tactical response (like capturing a queen)
-                    our_best_responses = []
-                    for response_move in board_after_capture.legal_moves:
-                        if board_after_capture.is_capture(response_move):
-                            response_see = see(board_after_capture, response_move)
-                            if response_see > 200:  # Lower threshold - rook+ value material
-                                our_best_responses.append((response_move, response_see))
-                    
-                    if debug_mode: print(f"[DEBUG]     Found {len(our_best_responses)} tactical responses")
-                    
-                    # IMPROVED LOGIC: Only filter out if our response wins SIGNIFICANTLY more than we lose
-                    # This prevents filtering out legitimate hanging pieces
-                    should_filter_out = False
-                    if our_best_responses:
-                        max_response_value = max(response[1] for response in our_best_responses)
-                        # Only filter out if:
-                        # 1. Our response wins at least 200 more centipawns than we lose (not just more)
-                        # 2. AND the response value is substantial (500+ centipawns, like a queen)
-                        net_gain = max_response_value - piece_value
-                        if debug_mode: print(f"[DEBUG]     Max response value: {max_response_value}, Net gain: {net_gain}")
-                        if net_gain >= 200 and max_response_value >= 500:
-                            should_filter_out = True
-                            if debug_mode:
-                                print(f"[DEBUG]     Filtering out: Piece {PIECE_NAMES.get(piece.piece_type, 'piece')} on {chess.square_name(square)} appears hanging but capturing it would be a blunder for opponent (net gain: {net_gain}, response value: {max_response_value})")
-                    
-                    if not should_filter_out:
-                        if debug_mode: print(f"[DEBUG]     Adding to hanging pieces list")
-                        # Store hanging piece info for comparison
-                        hanging_pieces.append({
-                            'square': square,
-                            'piece': piece,
-                            'see_value': see_value,
-                            'piece_value': piece_value,
-                            'capture_move': capture_move,
-                            'attackers': len(attackers),
-                            'defenders': len(defenders),
-                            'defenders_changed': defenders_changed  # Track if this move affected the piece's defense
-                        })
-                    else:
-                        if debug_mode: print(f"[DEBUG]     Filtered out due to tactical response")
-                else:
-                    # ENHANCED: Check if this piece is hanging due to a checking capture
-                    # Even if SEE is below threshold, a check might make it hanging
-                    if board_after.gives_check(capture_move):
-                        if debug_mode: print(f"[DEBUG]     Capture gives check - piece may be hanging despite low SEE")
-                        # When the capture gives check, the defending side must respond to check
-                        # This often means they can't immediately recapture, making the piece effectively hanging
-                        
-                        # For checking captures, use a lower threshold
-                        check_hanging_threshold = max(50, hanging_threshold // 3)  # Much lower threshold for checks
-                        
-                        if see_value >= check_hanging_threshold:
-                            if debug_mode: print(f"[DEBUG]     Check capture SEE ({see_value}) >= check threshold ({check_hanging_threshold}), piece is hanging")
-                            
-                            # Store hanging piece info for comparison
-                            hanging_pieces.append({
-                                'square': square,
-                                'piece': piece,
-                                'see_value': see_value,
-                                'piece_value': piece_value,
-                                'capture_move': capture_move,
-                                'attackers': len(attackers),
-                                'defenders': len(defenders),
-                                'defenders_changed': defenders_changed,  # Track if this move affected the piece's defense
-                                'is_check': True  # Flag this as a checking capture
-                            })
-                        else:
-                            if debug_mode: print(f"[DEBUG]     Check capture SEE ({see_value}) < check threshold ({check_hanging_threshold}), not hanging")
-                    else:
-                        if debug_mode: print(f"[DEBUG]     SEE value ({see_value}) < threshold ({hanging_threshold}), not hanging")
-            else:
-                if debug_mode: print(f"[DEBUG]     No attackers")
-    
-    if debug_mode: print(f"[DEBUG] Found {len(hanging_pieces)} hanging pieces total")
-    
-    # If we found hanging pieces, report the most significant one
+    # Remove complex SEE-based logic and simplify hanging piece detection
+    hanging_pieces = []
+    if debug_mode: print(f"[DEBUG] Checking for hanging pieces after move {move_played_san} (SIMPLE MODE)...")
+
+    for square in chess.SQUARES:
+        piece = board_after.piece_at(square)
+        if piece and piece.color == turn_color:
+            attackers = board_after.attackers(not turn_color, square)
+            if attackers:
+                defenders = board_after.attackers(turn_color, square)
+                if len(defenders) == 0:  # TRULY hanging – no defenders at all
+                    capture_move_from = min(attackers, key=lambda s: PIECE_VALUES.get(board_after.piece_at(s).piece_type, 0))
+                    capture_move = chess.Move(capture_move_from, square)
+                    if board_after.piece_at(capture_move_from).piece_type == chess.PAWN and chess.square_rank(square) in [0, 7]:
+                        capture_move.promotion = chess.QUEEN
+                    hanging_pieces.append({
+                        'square': square,
+                        'piece': piece,
+                        'capture_move': capture_move,
+                        'attackers': len(attackers)
+                    })
+
+    if debug_mode: print(f"[DEBUG] Found {len(hanging_pieces)} hanging pieces (simple mode)")
+
     if hanging_pieces:
-        # IMPROVED LOGIC: Prioritize pieces most affected by the move
-        # Sort by: 1) Defenders changed by move, 2) Undefended pieces first (defenders = 0), 3) Then by piece value (higher first), 4) Then by SEE value
-        def hanging_priority(piece_info):
-            defenders = piece_info['defenders']
-            piece_value = piece_info['piece_value']
-            see_value = piece_info['see_value']
-            defenders_changed = piece_info.get('defenders_changed', False)
-            
-            # Pieces whose defense was affected by the move get highest priority
-            if defenders_changed:
-                move_affected_priority = -2000  # Highest priority
-            else:
-                move_affected_priority = 0  # Lower priority
-            
-            # Truly undefended pieces get second highest priority
-            if defenders == 0:
-                undefended_priority = -1000  # Very high priority
-            else:
-                undefended_priority = defenders  # Lower priority for defended pieces
-            
-            # Tertiary sort by piece value (higher value pieces are more significant)
-            # Quaternary sort by SEE value
-            return (move_affected_priority, undefended_priority, -piece_value, -see_value)
-        
-        hanging_pieces.sort(key=hanging_priority)
-        most_significant = hanging_pieces[0]
-        
-        piece_name = PIECE_NAMES.get(most_significant['piece'].piece_type, "piece")
-        square_name = chess.square_name(most_significant['square'])
-        
-        # Check if this is a checking capture
-        is_check_capture = most_significant.get('is_check', False)
-        if is_check_capture:
-            # For checking captures, provide a more detailed explanation
-            capture_move_san = board_after.san(most_significant['capture_move'])
-            description = f"your move {move_played_san} left your {piece_name} on {square_name} hanging. The opponent can play {capture_move_san} (check), forcing you to respond to the check before you can recapture."
-        else:
-            description = f"your move {move_played_san} left your {piece_name} on {square_name} undefended."
-        
-        if debug_mode: 
-            print(f"[DEBUG] Most significant hanging piece:")
-            print(f"[DEBUG]   Move played: {move_played_san}")
-            print(f"[DEBUG]   Hanging piece: {piece_name} on {square_name}")
-            print(f"[DEBUG]   Attackers: {most_significant['attackers']}, Defenders: {most_significant['defenders']}")
-            print(f"[DEBUG]   SEE value: {most_significant['see_value']}, Piece value: {most_significant['piece_value']}")
-            if is_check_capture:
-                print(f"[DEBUG]   Note: This is a checking capture")
-            if len(hanging_pieces) > 1:
-                print(f"[DEBUG]   Note: {len(hanging_pieces)} pieces are hanging, reporting the most significant")
-                print(f"[DEBUG]   All hanging pieces:")
-                for i, hp in enumerate(hanging_pieces):
-                    hp_name = PIECE_NAMES.get(hp['piece'].piece_type, "piece")
-                    hp_square = chess.square_name(hp['square'])
-                    def_changed = hp.get('defenders_changed', False)
-                    priority_info = f"Def:{hp['defenders']}, Val:{hp['piece_value']}, SEE:{hp['see_value']}, DefChanged:{def_changed}"
-                    print(f"[DEBUG]     {i+1}. {hp_name} on {hp_square} ({priority_info})")
-                print(f"[DEBUG]   Selected: #{1} {piece_name} on {square_name} (prioritized by defense_affected > undefended > piece_value > SEE)")
-        
-        return {"category": "Hanging a Piece", "move_number": actual_move_number, "description": description, "punishing_move": most_significant['capture_move']}
-    
+        # pick the most valuable piece hanging
+        hanging_pieces.sort(key=lambda hp: -PIECE_VALUES.get(hp['piece'].piece_type,0))
+        most = hanging_pieces[0]
+        piece_name = PIECE_NAMES.get(most['piece'].piece_type,'piece')
+        square_name = chess.square_name(most['square'])
+        description = f"your move {move_played_san} left your {piece_name} on {square_name} completely undefended."
+        return {"category": "Hanging a Piece", "move_number": actual_move_number, "description": description, "punishing_move": most['capture_move']}
+
     return None
 
 def check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number):
@@ -693,6 +551,76 @@ def check_for_allowed_pin(board_after, info_after_move, turn_color, move_played,
         return {"category": "Allowed Pin", "move_number": actual_move_number, "description": description, "punishing_move": opponent_best_move} # return blunder dict
     return None
 
+def check_for_winning_exchange(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number, info_after_move=None):
+    """
+    Detects situations where a defended piece can still be captured in a sequence that wins material for the opponent (SEE > threshold).
+    ENHANCED: Now verifies that the suggested opponent capture is actually a good move.
+    Returns a blunder dict for new category 'Allowed Winning Exchange for Opponent' or None.
+    """
+    move_played_san = board_before.san(move_played)
+    winning_targets = []
+    for square in chess.SQUARES:
+        piece = board_after.piece_at(square)
+        if not piece or piece.color != turn_color:
+            continue
+        attackers = board_after.attackers(not turn_color, square)
+        if not attackers:
+            continue  # cannot be captured
+        defenders = board_after.attackers(turn_color, square)
+        if len(defenders) == 0:
+            continue  # true hanging handled elsewhere
+        lva_square = min(attackers, key=lambda s: PIECE_VALUES.get(board_after.piece_at(s).piece_type, 0))
+        capture_move = chess.Move(lva_square, square)
+        # handle pawn promotion
+        if board_after.piece_at(lva_square).piece_type == chess.PAWN and chess.square_rank(square) in [0,7]:
+            capture_move.promotion = chess.QUEEN
+        see_value = see(board_after, capture_move)
+        # Thresholds similar to hanging detection but lower
+        piece_value = PIECE_VALUES.get(piece.piece_type, 0)
+        # Require opponent gains at least 100 cp net (one pawn) for it to matter
+        if see_value >= 100:
+            # ENHANCED: Verify this capture is actually a good move for the opponent
+            is_good_opponent_move = True
+            if info_after_move and info_after_move.get('pv'):
+                opponent_best_move = info_after_move['pv'][0]
+                # Check if this capture is the best move or at least among top moves
+                if capture_move != opponent_best_move:
+                    if debug_mode:
+                        opponent_best_san = board_after.san(opponent_best_move)
+                        capture_san = board_after.san(capture_move)
+                        print(f"[DEBUG] Capture {capture_san} (SEE {see_value}) vs opponent's best {opponent_best_san}")
+                    # For now, we'll be conservative and only flag if it's the actual best move
+                    # This prevents false positives like the Qxc5 issue
+                    is_good_opponent_move = False
+            
+            if is_good_opponent_move:
+                winning_targets.append({
+                    'square': square,
+                    'piece': piece,
+                    'see_value': see_value,
+                    'capture_move': capture_move,
+                    'defenders': len(defenders)
+                })
+                if debug_mode:
+                    piece_name = PIECE_NAMES.get(piece.piece_type,'piece')
+                    print(f"[DEBUG] Valid winning exchange: {piece_name} on {chess.square_name(square)} SEE {see_value} defenders {len(defenders)}")
+            elif debug_mode:
+                piece_name = PIECE_NAMES.get(piece.piece_type,'piece')
+                print(f"[DEBUG] Rejected winning exchange: {piece_name} on {chess.square_name(square)} - capture not opponent's best move")
+                
+    if not winning_targets:
+        return None
+    # choose highest see_value
+    winning_targets.sort(key=lambda t: (-t['see_value'], -PIECE_VALUES.get(t['piece'].piece_type,0)))
+    target = winning_targets[0]
+    piece_name = PIECE_NAMES.get(target['piece'].piece_type,'piece')
+    square_name = chess.square_name(target['square'])
+    opponent_capture_san = board_after.san(target['capture_move'])
+    description = (f"your move {move_played_san} left your {piece_name} on {square_name} defended, but the resulting exchange sequence starting with "
+                   f"{opponent_capture_san} wins material for your opponent.")
+    return {"category": "Allowed Winning Exchange for Opponent", "move_number": actual_move_number,
+            "description": description, "punishing_move": target['capture_move']}
+
 def categorize_blunder(board_before, board_after, move_played, info_before_move, info_after_move, best_move_info, blunder_threshold, debug_mode, actual_move_number):
     """
     Categorization pipeline. First checks if move is actually a blunder (win probability drop),
@@ -746,43 +674,80 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
         if debug_mode: print(f"[DEBUG] Found Missed Checkmate") # debug output
         return {"category": "Missed Checkmate", "move_number": actual_move_number, "description": description, "win_prob_drop": win_prob_drop} # return blunder dict
     
-    # Check 3: Material Loss using SEE (Hanging a Piece) - HIGH PRIORITY
-    material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number) # check for material loss
-    if material_blunder: # if material loss found
-        material_blunder["win_prob_drop"] = win_prob_drop # add win probability drop
-        return material_blunder # return the blunder
-    
-    # Check 4: Allowed Fork
+    # Check 3: Allowed Fork (HIGH PRIORITY - tactical patterns before simple hanging)
     allowed_fork = check_for_allowed_fork(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed fork
     if allowed_fork: # if allowed fork found
         allowed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
         return allowed_fork # return the blunder
     
-    # Check 5: Missed Fork
+    # Check 4: Material Analysis (compare material loss vs missed gain)
+    material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number)
+    missed_material = check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode, actual_move_number)
+    winning_exchange = check_for_winning_exchange(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number, info_after_move)
+    
+    # VALUE-BASED PRIORITY: Choose the most significant material issue
+    material_issues = []
+    if material_blunder:
+        material_issues.append(material_blunder)
+    if winning_exchange:
+        material_issues.append(winning_exchange)
+    if missed_material:
+        material_issues.append(missed_material)
+    
+    if len(material_issues) > 1:
+        # Calculate priority values for each issue
+        def get_priority_value(issue):
+            category = issue["category"]
+            if category == "Hanging a Piece":
+                return 1000  # Truly hanging pieces are most serious
+            elif category == "Losing Exchange":
+                return 500   # Losing exchanges are serious  
+            elif category == "Allowed Winning Exchange for Opponent":
+                return 300   # Defended pieces with bad exchanges
+            elif category == "Missed Material Gain":
+                return 100   # Missed opportunities are less urgent
+            else:
+                return 50    # Default low priority
+        
+        # Sort by priority (highest first) and choose the most significant
+        material_issues.sort(key=get_priority_value, reverse=True)
+        chosen_issue = material_issues[0]
+        
+        if debug_mode:
+            for issue in material_issues:
+                priority = get_priority_value(issue)
+                print(f"[DEBUG] MATERIAL ISSUE: {issue['category']} (priority: {priority})")
+            print(f"[DEBUG] CHOSEN: {chosen_issue['category']}")
+        
+        chosen_issue["win_prob_drop"] = win_prob_drop
+        return chosen_issue
+    elif len(material_issues) == 1:
+        # Only one material issue found
+        chosen_issue = material_issues[0]
+        chosen_issue["win_prob_drop"] = win_prob_drop
+        return chosen_issue
+    
+    # Check 6: Missed Fork
     missed_fork = check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed fork
     if missed_fork: # if missed fork found
         missed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
         return missed_fork # return the blunder
     
-    # Check 6: Allowed Pin
+    # Check 7: (Removed - handled in material analysis section above)
+    
+    # Check 8: Allowed Pin
     allowed_pin = check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed pin
     if allowed_pin: # if allowed pin found
         allowed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
         return allowed_pin # return the blunder
     
-    # Check 7: Missed Pin - LOWER PRIORITY
+    # Check 9: Missed Pin - LOWER PRIORITY
     missed_pin = check_for_missed_pin(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed pin
     if missed_pin: # if missed pin found
         missed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
         return missed_pin # return the blunder
     
-    # Check 8: Missed Material Gain using SEE
-    missed_material = check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode, actual_move_number) # check for missed material gain
-    if missed_material: # if missed material gain found
-        missed_material["win_prob_drop"] = win_prob_drop # add win probability drop
-        return missed_material # return the blunder
-    
-    # Check 9: General Mistake (fallback)
+    # Check 10: General Mistake (fallback)
     # We already know it's a blunder due to win probability drop, so categorize as general mistake
     best_move_san = board_before.san(best_move_info['pv'][0]) # convert best move to SAN format
     description = f"your move {move_played_san} dropped your win probability by {win_prob_drop:.1f}%. The best move was {best_move_san}." # create description
