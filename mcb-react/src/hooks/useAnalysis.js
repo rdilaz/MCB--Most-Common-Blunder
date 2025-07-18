@@ -36,7 +36,8 @@ export const useAnalysis = () => {
       updateAnalysis({
         sessionId: sessionId,
         isAnalyzing: true,
-        currentSettings: getAnalysisSettings()
+        currentSettings: getAnalysisSettings(),
+        startTime: Date.now()
       });
       
       // Update UI state
@@ -127,7 +128,8 @@ export const useAnalysis = () => {
         ...prevState,
         progressLogs: [...(prevState.progressLogs || []), {
           message: data.message,
-          timestamp: new Date().toLocaleTimeString()
+          timestamp: new Date().toLocaleTimeString(),
+          rawTimestamp: Date.now()
         }]
       }));
     }
@@ -166,7 +168,8 @@ export const useAnalysis = () => {
       ...prevState,
       progressLogs: [...(prevState.progressLogs || []), {
         message: '✅ Analysis completed!',
-        timestamp: new Date().toLocaleTimeString()
+        timestamp: new Date().toLocaleTimeString(),
+        rawTimestamp: Date.now()
       }]
     }));
     

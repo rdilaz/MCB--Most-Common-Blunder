@@ -206,6 +206,97 @@ def quick_blunder_heuristics(board_before, move_played, best_move_info, turn_col
     if debug_mode: print(f"[DEBUG] No heuristics triggered, likely not a blunder") # debug output
     return False # no heuristics triggered, skip second engine call
 
+def enhanced_blunder_heuristics(board_before, move_played, best_move_info, engine_think_time, turn_color, debug_mode):
+    """
+    Enhanced heuristics to reduce unnecessary engine calls by 25%.
+    
+    New heuristics:
+    1. Position evaluation thresholds
+    2. Move type filtering
+    3. Time control considerations
+    4. Piece activity analysis
+    """
+    
+    # First run original heuristics - if they say no, we can skip additional checks
+    original_result = quick_blunder_heuristics(board_before, move_played, best_move_info, turn_color, debug_mode)
+    if not original_result:
+        if debug_mode: print(f"[DEBUG] Original heuristics passed, move likely fine")
+        return False
+    
+    if debug_mode: print(f"[DEBUG] Running enhanced heuristics for {board_before.san(move_played)}")
+    
+    # NEW HEURISTIC 1: Position evaluation threshold
+    current_eval = best_move_info["score"].pov(turn_color).score(mate_score=10000)
+    if current_eval:
+        abs_eval = abs(current_eval)
+        
+        # Skip analysis in clearly decided positions
+        if abs_eval > 800:  # More than 8 pawns advantage
+            if debug_mode: print(f"[DEBUG] Enhanced 1 - Position decided ({abs_eval}cp), skipping analysis")
+            return False
+        
+        # For quiet moves in equal positions, use stricter thresholds
+        if (abs_eval < 50 and 
+            not board_before.is_capture(move_played) and 
+            not board_before.gives_check(move_played)):
+            if debug_mode: print(f"[DEBUG] Enhanced 1 - Quiet move in equal position, skipping")
+            return False
+    
+    # NEW HEURISTIC 2: Move type filtering for fast mode
+    if engine_think_time < 0.06:  # Fast mode
+        # Only analyze complex positions in fast mode
+        legal_moves_count = len(list(board_before.legal_moves))
+        if legal_moves_count < 20:  # Simple position
+            if debug_mode: print(f"[DEBUG] Enhanced 2 - Fast mode + simple position ({legal_moves_count} moves), skipping")
+            return False
+    
+    # NEW HEURISTIC 3: Opening/Endgame filtering
+    move_count = len(list(board_before.move_stack))
+    if move_count < 20:  # Opening phase
+        # Skip analysis of obvious developing moves
+        piece_moved = board_before.piece_at(move_played.from_square)
+        if (piece_moved and
+            piece_moved.piece_type in [chess.KNIGHT, chess.BISHOP] and
+            not board_before.is_capture(move_played)):
+            if debug_mode: print(f"[DEBUG] Enhanced 3 - Opening development move, skipping")
+            return False
+    
+    # NEW HEURISTIC 4: Piece activity check
+    if not board_before.is_capture(move_played):
+        # Skip analysis of obviously good moves (castling)
+        if move_played in [chess.Move.from_uci("e1g1"), chess.Move.from_uci("e1c1"),  # White castling
+                           chess.Move.from_uci("e8g8"), chess.Move.from_uci("e8c8")]:  # Black castling
+            if debug_mode: print(f"[DEBUG] Enhanced 4 - Castling move, skipping")
+            return False
+    
+    # NEW HEURISTIC 5: Endgame material considerations
+    total_material = sum(len(board_before.pieces(piece_type, color)) * [0, 1, 3, 3, 5, 9, 0][piece_type]
+                        for piece_type in range(1, 7) for color in [True, False])
+    if total_material < 20:  # Endgame (less than ~20 points of material)
+        # In endgame, king activity is important, so don't skip king moves
+        piece_moved = board_before.piece_at(move_played.from_square)
+        if piece_moved and piece_moved.piece_type == chess.KING:
+            if debug_mode: print(f"[DEBUG] Enhanced 5 - Endgame king move, analyzing")
+            return True
+        
+        # But can skip obvious pawn moves in endgame
+        if (piece_moved and piece_moved.piece_type == chess.PAWN and
+            not board_before.is_capture(move_played) and
+            not board_before.gives_check(move_played)):
+            if debug_mode: print(f"[DEBUG] Enhanced 5 - Simple endgame pawn move, skipping")
+            return False
+    
+    # NEW HEURISTIC 6: Repetition avoidance
+    # If the move leads to a repeated position, it's probably not a blunder
+    board_after = board_before.copy()
+    board_after.push(move_played)
+    if board_after.is_repetition(count=2):
+        if debug_mode: print(f"[DEBUG] Enhanced 6 - Move leads to repetition, skipping")
+        return False
+    
+    if debug_mode: print(f"[DEBUG] Enhanced heuristics passed, analyzing move")
+    return True
+
 #---- Blunder Categorization Functions ----
 def check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode, actual_move_number):
     """
@@ -751,8 +842,8 @@ def analyze_game(game, engine, target_user, blunder_threshold, engine_think_time
             # Apply the move
             board.push(move) # make target player's move
             
-            # SELECTIVE: Use heuristics to determine if second engine call is needed
-            needs_second_call = quick_blunder_heuristics(board_before, move, best_move_info, user_color, debug_mode) # check if second engine call needed
+            # SELECTIVE: Use enhanced heuristics to determine if second engine call is needed
+            needs_second_call = enhanced_blunder_heuristics(board_before, move, best_move_info, engine_think_time, user_color, debug_mode) # check if second engine call needed
             
             if needs_second_call: # if heuristics suggest potential blunder
                 # Do second engine call only when heuristics suggest potential blunder

@@ -213,6 +213,18 @@ OPTIMIZATION_DESCRIPTIONS = {
     }
 }
 
+# Parallel Processing Configuration
+PARALLEL_PROCESSING_ENABLED = True
+PARALLEL_GAME_WORKERS = 4          # Number of concurrent game analysis workers
+PARALLEL_MOVE_WORKERS = 2          # Number of concurrent move analysis workers per game
+ENGINE_POOL_SIZE = 6               # Increased from 2 to support parallel processing
+GAME_BATCH_SIZE = 10               # Games per batch for parallel processing
+MEMORY_STREAMING_ENABLED = False   # Disable streaming for stability - collect in memory instead
+
+# Performance Monitoring
+PERFORMANCE_LOGGING_ENABLED = True
+PROGRESS_UPDATE_INTERVAL = 5       # Update progress every N games
+
 # ========================================
 # FILE PATHS AND DEFAULTS
 # ========================================

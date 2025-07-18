@@ -70,11 +70,11 @@ const AnalysisForm = () => {
               <Slider
                 id="gameCount"
                 min={1}
-                max={50}
+                max={100}
                 value={settings.gameCount}
                 onChange={(e) => handleInputChange('gameCount', parseInt(e.target.value))}
               />
-              <small>Analyze your most recent games (max 50)</small>
+              <small>Analyze your most recent games (max 100)</small>
             </div>
 
             <div className="setting-group">

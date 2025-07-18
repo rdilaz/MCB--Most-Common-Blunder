@@ -7,4 +7,5 @@ chess==1.999
 requests==2.31.0
 python-chess==1.999
 redis==4.5.1
-httpx==0.25.2 
+httpx==0.25.2
+psutil==5.9.6 
