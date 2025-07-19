@@ -8,19 +8,24 @@ import time
 
 # ---- Constants ----
 STOCKFISH_PATH_DEFAULT = os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe")
-BLUNDER_THRESHOLD_DEFAULT = 5.0  # Lowered for better detection (was 15)
+BLUNDER_THRESHOLD_DEFAULT = 10.0  # Changed to match config.py setting
 ENGINE_THINK_TIME_DEFAULT = 0.08  # Changed to balanced (was 0.1)
 BLUNDER_CATEGORY_PRIORITY = {
     "Allowed Checkmate": 1,
     "Missed Checkmate": 2,
     "Hanging a Piece": 3,  # Moved up - hanging pieces are more critical
-    "Allowed Fork": 4,
-    "Missed Fork": 5,
-    "Losing Exchange": 6,
-    "Missed Material Gain": 7,
-    "Allowed Pin": 8,
-    "Missed Pin": 9,  # Moved down - pins are less critical than hanging pieces
-    "Mistake": 10
+    "Allowed Winning Exchange for Opponent": 4,  # NEW CATEGORY
+    "Allowed Fork": 5,
+    "Missed Fork": 6,
+    "Allowed Discovered Attack": 7,  # NEW CATEGORY
+    "Missed Discovered Attack": 8,  # NEW CATEGORY
+    "Losing Exchange": 9,
+    "Missed Material Gain": 10,
+    "Allowed Opportunity to Pressure Pinned Piece": 11,  # NEW CATEGORY
+    "Missed Opportunity to Pressure Pinned Piece": 12,  # NEW CATEGORY
+    "Allowed Pin": 13,
+    "Missed Pin": 14,  # Moved down - pins are less critical than hanging pieces
+    "Mistake": 15
 }
 PIECE_VALUES = {
     chess.PAWN: 100,
@@ -346,7 +351,7 @@ def check_for_missed_material_gain(board_before, best_move_info, move_played, de
                 print(f"[DEBUG]   Move played: {move_played_san}")
                 print(f"[DEBUG]   Best move: {best_move_san}")
                 print(f"[DEBUG]   SEE value: {see_value}")
-            return {"category": "Missed Material Gain", "move_number": actual_move_number, "description": description, "punishing_move": best_move} # return blunder dict
+            return {"category": "Missed Material Gain", "move_number": actual_move_number, "description": description, "punishing_move": best_move, "material_value": see_value} # return blunder dict with material value
     
     return None
 
@@ -400,9 +405,10 @@ def check_for_material_loss(board_before, move_played, board_after, turn_color, 
         hanging_pieces.sort(key=lambda hp: -PIECE_VALUES.get(hp['piece'].piece_type,0))
         most = hanging_pieces[0]
         piece_name = PIECE_NAMES.get(most['piece'].piece_type,'piece')
+        piece_value = PIECE_VALUES.get(most['piece'].piece_type, 0)
         square_name = chess.square_name(most['square'])
         description = f"your move {move_played_san} left your {piece_name} on {square_name} completely undefended."
-        return {"category": "Hanging a Piece", "move_number": actual_move_number, "description": description, "punishing_move": most['capture_move']}
+        return {"category": "Hanging a Piece", "move_number": actual_move_number, "description": description, "punishing_move": most['capture_move'], "material_value": piece_value}
 
     return None
 
@@ -551,6 +557,153 @@ def check_for_allowed_pin(board_after, info_after_move, turn_color, move_played,
         return {"category": "Allowed Pin", "move_number": actual_move_number, "description": description, "punishing_move": opponent_best_move} # return blunder dict
     return None
 
+def check_for_missed_pinned_piece_pressure(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number):
+    """
+    Checks if the best move would have added pressure to a pinned opponent piece.
+    Returns a 'Missed Opportunity to Pressure Pinned Piece' blunder dict if found, otherwise None.
+    """
+    if not best_move_info.get('pv'): return None
+    best_move = best_move_info['pv'][0]
+    
+    # Don't flag the best move as a missed opportunity
+    if best_move == move_played:
+        if debug_mode: print(f"[DEBUG] Move played ({board_before.san(move_played)}) IS the best move - no missed pinned piece pressure")
+        return None
+    
+    # Check if best move adds pressure to a pinned piece
+    pins_before = get_absolute_pins(board_before, not turn_color)
+    if not pins_before:
+        return None
+    
+    board_with_best_move = board_before.copy()
+    board_with_best_move.push(best_move)
+    
+    # Check if best move attacks any pinned pieces
+    for pinned_square, pinner_square in pins_before:
+        if best_move.to_square == pinned_square or pinned_square in board_with_best_move.attacks(best_move.to_square):
+            pinned_piece = board_before.piece_at(pinned_square)
+            if pinned_piece and pinned_piece.color != turn_color:
+                piece_name = PIECE_NAMES.get(pinned_piece.piece_type, "piece")
+                best_move_san = board_before.san(best_move)
+                move_played_san = board_before.san(move_played)
+                description = f"your move {move_played_san} missed an opportunity to add pressure to a pinned {piece_name} with {best_move_san}."
+                if debug_mode: print(f"[DEBUG] Found Missed Pinned Piece Pressure")
+                return {"category": "Missed Opportunity to Pressure Pinned Piece", "move_number": actual_move_number, "description": description, "punishing_move": best_move}
+    
+    return None
+
+def check_for_allowed_pinned_piece_pressure(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number):
+    """
+    Detects if the player's move allowed the opponent to add pressure to a pinned piece.
+    Returns an 'Allowed Opportunity to Pressure Pinned Piece' blunder dict if found, otherwise None.
+    """
+    if not info_after_move.get('pv'): return None
+    opponent_best_move = info_after_move['pv'][0]
+    if opponent_best_move not in board_after.legal_moves: return None
+
+    # Check if there are any pinned pieces
+    pins_current = get_absolute_pins(board_after, turn_color)
+    if not pins_current:
+        return None
+    
+    board_after_opponent_move = board_after.copy()
+    board_after_opponent_move.push(opponent_best_move)
+    
+    # Check if opponent's best move adds pressure to any pinned pieces
+    for pinned_square, pinner_square in pins_current:
+        if (opponent_best_move.to_square == pinned_square or 
+            pinned_square in board_after_opponent_move.attacks(opponent_best_move.to_square)):
+            pinned_piece = board_after.piece_at(pinned_square)
+            if pinned_piece and pinned_piece.color == turn_color:
+                piece_name = PIECE_NAMES.get(pinned_piece.piece_type, "piece")
+                opponent_best_move_san = board_after.san(opponent_best_move)
+                move_played_san = board_before.san(move_played)
+                description = f"your move {move_played_san} allows the opponent to add pressure to your pinned {piece_name} with {opponent_best_move_san}."
+                if debug_mode: print(f"[DEBUG] Found Allowed Pinned Piece Pressure")
+                return {"category": "Allowed Opportunity to Pressure Pinned Piece", "move_number": actual_move_number, "description": description, "punishing_move": opponent_best_move}
+    
+    return None
+
+def check_for_missed_discovered_attack(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number):
+    """
+    Checks if the best move would have created a discovered attack.
+    Returns a 'Missed Discovered Attack' blunder dict if found, otherwise None.
+    """
+    if not best_move_info.get('pv'): return None
+    best_move = best_move_info['pv'][0]
+    
+    # Don't flag the best move as a missed opportunity
+    if best_move == move_played:
+        if debug_mode: print(f"[DEBUG] Move played ({board_before.san(move_played)}) IS the best move - no missed discovered attack")
+        return None
+    
+    # Check if best move creates a discovered attack
+    board_with_best_move = board_before.copy()
+    board_with_best_move.push(best_move)
+    
+    # Look for pieces that gained new attacks after the move
+    piece_from = board_before.piece_at(best_move.from_square)
+    if not piece_from:
+        return None
+    
+    # Check if moving reveals attacks from pieces behind
+    for square in chess.SQUARES:
+        piece = board_with_best_move.piece_at(square)
+        if piece and piece.color == turn_color and square != best_move.to_square:
+            # Check if this piece gained new attacks that weren't there before
+            attacks_before = board_before.attacks(square)
+            attacks_after = board_with_best_move.attacks(square)
+            new_attacks = attacks_after - attacks_before
+            
+            # Check if new attacks target valuable opponent pieces
+            for attack_square in new_attacks:
+                target_piece = board_with_best_move.piece_at(attack_square)
+                if target_piece and target_piece.color != turn_color and target_piece.piece_type > chess.PAWN:
+                    attacking_piece_name = PIECE_NAMES.get(piece.piece_type, "piece")
+                    target_piece_name = PIECE_NAMES.get(target_piece.piece_type, "piece")
+                    best_move_san = board_before.san(best_move)
+                    move_played_san = board_before.san(move_played)
+                    description = f"your move {move_played_san} missed a discovered attack where {best_move_san} would reveal your {attacking_piece_name}'s attack on the opponent's {target_piece_name}."
+                    if debug_mode: print(f"[DEBUG] Found Missed Discovered Attack")
+                    return {"category": "Missed Discovered Attack", "move_number": actual_move_number, "description": description, "punishing_move": best_move}
+    
+    return None
+
+def check_for_allowed_discovered_attack(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number):
+    """
+    Detects if the player's move allowed the opponent to create a discovered attack.
+    Returns an 'Allowed Discovered Attack' blunder dict if found, otherwise None.
+    """
+    if not info_after_move.get('pv'): return None
+    opponent_best_move = info_after_move['pv'][0]
+    if opponent_best_move not in board_after.legal_moves: return None
+
+    board_after_opponent_move = board_after.copy()
+    board_after_opponent_move.push(opponent_best_move)
+    
+    # Look for pieces that gained new attacks after opponent's move
+    for square in chess.SQUARES:
+        piece = board_after_opponent_move.piece_at(square)
+        if piece and piece.color != turn_color and square != opponent_best_move.to_square:
+            # Check if this piece gained new attacks that weren't there before
+            attacks_before = board_after.attacks(square)
+            attacks_after = board_after_opponent_move.attacks(square)
+            new_attacks = attacks_after - attacks_before
+            
+            # Check if new attacks target valuable player pieces
+            for attack_square in new_attacks:
+                target_piece = board_after_opponent_move.piece_at(attack_square)
+                if target_piece and target_piece.color == turn_color and target_piece.piece_type > chess.PAWN:
+                    attacking_piece_name = PIECE_NAMES.get(piece.piece_type, "piece")
+                    target_piece_name = PIECE_NAMES.get(target_piece.piece_type, "piece")
+                    opponent_best_move_san = board_after.san(opponent_best_move)
+                    move_played_san = board_before.san(move_played)
+                    description = f"your move {move_played_san} allows the opponent to create a discovered attack with {opponent_best_move_san}, where their {attacking_piece_name} attacks your {target_piece_name}."
+                    if debug_mode: print(f"[DEBUG] Found Allowed Discovered Attack")
+                    return {"category": "Allowed Discovered Attack", "move_number": actual_move_number, "description": description, "punishing_move": opponent_best_move}
+    
+    return None
+
 def check_for_winning_exchange(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number, info_after_move=None):
     """
     Detects situations where a defended piece can still be captured in a sequence that wins material for the opponent (SEE > threshold).
@@ -589,9 +742,10 @@ def check_for_winning_exchange(board_before, move_played, board_after, turn_colo
                         opponent_best_san = board_after.san(opponent_best_move)
                         capture_san = board_after.san(capture_move)
                         print(f"[DEBUG] Capture {capture_san} (SEE {see_value}) vs opponent's best {opponent_best_san}")
-                    # For now, we'll be conservative and only flag if it's the actual best move
-                    # This prevents false positives like the Qxc5 issue
-                    is_good_opponent_move = False
+                    # RELAXED: Allow winning exchanges if they win significant material (200+ cp)
+                    # This prevents false positives while catching real tactical errors
+                    if see_value < 200:
+                        is_good_opponent_move = False
             
             if is_good_opponent_move:
                 winning_targets.append({
@@ -619,7 +773,7 @@ def check_for_winning_exchange(board_before, move_played, board_after, turn_colo
     description = (f"your move {move_played_san} left your {piece_name} on {square_name} defended, but the resulting exchange sequence starting with "
                    f"{opponent_capture_san} wins material for your opponent.")
     return {"category": "Allowed Winning Exchange for Opponent", "move_number": actual_move_number,
-            "description": description, "punishing_move": target['capture_move']}
+            "description": description, "punishing_move": target['capture_move'], "material_value": target['see_value']}
 
 def categorize_blunder(board_before, board_after, move_played, info_before_move, info_after_move, best_move_info, blunder_threshold, debug_mode, actual_move_number):
     """
@@ -680,52 +834,39 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
         allowed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
         return allowed_fork # return the blunder
     
-    # Check 4: Material Analysis (compare material loss vs missed gain)
-    material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number)
+    # Check 4: VALUE-BASED TIE-BREAKER - Compare missed material gain vs hanging pieces vs winning exchanges
     missed_material = check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode, actual_move_number)
+    material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number)
     winning_exchange = check_for_winning_exchange(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number, info_after_move)
     
-    # VALUE-BASED PRIORITY: Choose the most significant material issue
+    # Collect all detected material issues
     material_issues = []
-    if material_blunder:
-        material_issues.append(material_blunder)
-    if winning_exchange:
-        material_issues.append(winning_exchange)
     if missed_material:
-        material_issues.append(missed_material)
+        material_issues.append(("Missed Material Gain", missed_material, missed_material.get("material_value", 0)))
+    if material_blunder:
+        material_issues.append(("Hanging/Losing", material_blunder, material_blunder.get("material_value", 0)))
+    if winning_exchange:
+        # Extract SEE value from winning exchange for comparison
+        winning_value = winning_exchange.get("material_value", 200)
+        material_issues.append(("Winning Exchange", winning_exchange, winning_value))
     
-    if len(material_issues) > 1:
-        # Calculate priority values for each issue
-        def get_priority_value(issue):
-            category = issue["category"]
-            if category == "Hanging a Piece":
-                return 1000  # Truly hanging pieces are most serious
-            elif category == "Losing Exchange":
-                return 500   # Losing exchanges are serious  
-            elif category == "Allowed Winning Exchange for Opponent":
-                return 300   # Defended pieces with bad exchanges
-            elif category == "Missed Material Gain":
-                return 100   # Missed opportunities are less urgent
-            else:
-                return 50    # Default low priority
-        
-        # Sort by priority (highest first) and choose the most significant
-        material_issues.sort(key=get_priority_value, reverse=True)
-        chosen_issue = material_issues[0]
+    # VALUE-BASED COMPARISON: Choose based on biggest centipawn swing
+    if material_issues:
+        # Sort by material value (highest first)
+        material_issues.sort(key=lambda x: x[2], reverse=True)
         
         if debug_mode:
-            for issue in material_issues:
-                priority = get_priority_value(issue)
-                print(f"[DEBUG] MATERIAL ISSUE: {issue['category']} (priority: {priority})")
-            print(f"[DEBUG] CHOSEN: {chosen_issue['category']}")
+            print(f"[DEBUG] VALUE-BASED TIE-BREAKER:")
+            for issue_type, issue_data, value in material_issues:
+                print(f"[DEBUG]   {issue_type}: {value} cp")
         
-        chosen_issue["win_prob_drop"] = win_prob_drop
-        return chosen_issue
-    elif len(material_issues) == 1:
-        # Only one material issue found
-        chosen_issue = material_issues[0]
-        chosen_issue["win_prob_drop"] = win_prob_drop
-        return chosen_issue
+        # Return the highest value issue
+        chosen_type, chosen_blunder, chosen_value = material_issues[0]
+        if debug_mode: print(f"[DEBUG] CHOOSING: {chosen_type} ({chosen_value} cp)")
+        chosen_blunder["win_prob_drop"] = win_prob_drop
+        return chosen_blunder
+    
+    # Check 5: Other material analysis complete above
     
     # Check 6: Missed Fork
     missed_fork = check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed fork
@@ -733,21 +874,41 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
         missed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
         return missed_fork # return the blunder
     
-    # Check 7: (Removed - handled in material analysis section above)
+    # Check 7: Discovered Attack checks (NEW)
+    allowed_discovered = check_for_allowed_discovered_attack(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number)
+    if allowed_discovered:
+        allowed_discovered["win_prob_drop"] = win_prob_drop
+        return allowed_discovered
     
-    # Check 8: Allowed Pin
+    missed_discovered = check_for_missed_discovered_attack(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number)
+    if missed_discovered:
+        missed_discovered["win_prob_drop"] = win_prob_drop
+        return missed_discovered
+    
+    # Check 8: Pinned piece pressure checks (NEW)
+    allowed_pinned_pressure = check_for_allowed_pinned_piece_pressure(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number)
+    if allowed_pinned_pressure:
+        allowed_pinned_pressure["win_prob_drop"] = win_prob_drop
+        return allowed_pinned_pressure
+    
+    missed_pinned_pressure = check_for_missed_pinned_piece_pressure(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number)
+    if missed_pinned_pressure:
+        missed_pinned_pressure["win_prob_drop"] = win_prob_drop
+        return missed_pinned_pressure
+    
+    # Check 9: Allowed Pin
     allowed_pin = check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed pin
     if allowed_pin: # if allowed pin found
         allowed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
         return allowed_pin # return the blunder
     
-    # Check 9: Missed Pin - LOWER PRIORITY
+    # Check 10: Missed Pin - LOWER PRIORITY
     missed_pin = check_for_missed_pin(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed pin
     if missed_pin: # if missed pin found
         missed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
         return missed_pin # return the blunder
     
-    # Check 10: General Mistake (fallback)
+    # Check 11: General Mistake (fallback)
     # We already know it's a blunder due to win probability drop, so categorize as general mistake
     best_move_san = board_before.san(best_move_info['pv'][0]) # convert best move to SAN format
     description = f"your move {move_played_san} dropped your win probability by {win_prob_drop:.1f}%. The best move was {best_move_san}." # create description

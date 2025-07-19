@@ -142,9 +142,9 @@ const AnalysisForm = () => {
                 value={settings.analysisDepth}
                 onChange={(e) => handleInputChange('analysisDepth', e.target.value)}
               >
-                <option value="fast">Fast (0.1s per move)</option>
-                <option value="balanced">Balanced (0.2s per move)</option>
-                <option value="deep">Deep (0.5s per move)</option>
+                <option value="fast">Fast (0.08s per move)</option>
+                <option value="balanced">Balanced (0.15s per move)</option>
+                <option value="deep">Deep (0.3s per move)</option>
               </select>
               <small>Higher depth = more accurate but slower</small>
             </div>

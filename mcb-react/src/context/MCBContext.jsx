@@ -39,8 +39,8 @@ const initialState = {
     gameTypes: ['blitz', 'rapid'],
     ratingFilter: 'rated',
     gameResult: 'all',
-    blunderThreshold: 15,
-    analysisDepth: 'fast'
+    blunderThreshold: 10,
+    analysisDepth: 'balanced'
   }
 };
 

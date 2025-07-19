@@ -15,19 +15,19 @@ load_dotenv()
 
 # Engine Configuration
 STOCKFISH_PATH = os.environ.get('STOCKFISH_PATH', os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe"))
-BLUNDER_THRESHOLD = 15
-ENGINE_THINK_TIME = 0.1
+BLUNDER_THRESHOLD = 10
+ENGINE_THINK_TIME = 0.08  # Changed to balanced for better accuracy
 
 # Game Analysis Settings
 GAMES_TO_FETCH = 1
 MAX_GAMES_ALLOWED = 100  # Hard cap to prevent server overload
 DAILY_GAME_LIMIT = 200   # Games per user per day
 
-# Analysis Depth Mapping (Optimized for production speed)
+# Analysis Depth Mapping (Balanced speed vs accuracy)
 ANALYSIS_DEPTH_MAPPING = {
-    'fast': 0.05,     # ULTRA FAST: 50ms per move (was 100ms)
-    'balanced': 0.08, # FAST: 80ms per move (was 200ms)  
-    'deep': 0.15      # NORMAL: 150ms per move (was 500ms)
+    'fast': 0.08,     # FAST: 80ms per move (was 100ms)
+    'balanced': 0.15, # BALANCED: 150ms per move (was 200ms)  
+    'deep': 0.3       # DEEP: 300ms per move (was 500ms)
 }
 
 # ========================================
@@ -81,11 +81,15 @@ BLUNDER_CATEGORY_PRIORITY = {
     "Allowed Winning Exchange for Opponent": 4,  # NEW CATEGORY
     "Allowed Fork": 5,
     "Missed Fork": 6,
-    "Losing Exchange": 7,
-    "Missed Material Gain": 8,
-    "Allowed Pin": 9,
-    "Missed Pin": 10,  # Moved down - pins are less critical than hanging pieces
-    "Mistake": 11
+    "Allowed Discovered Attack": 7,  # NEW CATEGORY
+    "Missed Discovered Attack": 8,  # NEW CATEGORY
+    "Losing Exchange": 9,
+    "Missed Material Gain": 10,
+    "Allowed Opportunity to Pressure Pinned Piece": 11,  # NEW CATEGORY
+    "Missed Opportunity to Pressure Pinned Piece": 12,  # NEW CATEGORY
+    "Allowed Pin": 13,
+    "Missed Pin": 14,  # Moved down - pins are less critical than hanging pieces
+    "Mistake": 15
 }
 
 # Chess Piece Values (in centipawns)
@@ -116,10 +120,14 @@ CATEGORY_WEIGHTS = {
     "Allowed Winning Exchange for Opponent": 1.8,  # NEW
     "Allowed Fork": 2.0,
     "Missed Fork": 2.0,
+    "Allowed Discovered Attack": 2.2,  # NEW
+    "Missed Discovered Attack": 2.0,  # NEW
     "Losing Exchange": 2.0,
     "Allowed Pin": 1.5,
     "Missed Pin": 1.5,
     "Missed Material Gain": 1.8,
+    "Allowed Opportunity to Pressure Pinned Piece": 1.7,  # NEW
+    "Missed Opportunity to Pressure Pinned Piece": 1.6,  # NEW
     "Mistake": 1.0
 }
 
@@ -131,8 +139,12 @@ BASE_IMPACT_VALUES = {
     'Allowed Winning Exchange for Opponent': 20.0,  # NEW
     'Allowed Fork': 20.0,
     'Missed Fork': 18.0,
+    'Allowed Discovered Attack': 22.0,  # NEW
+    'Missed Discovered Attack': 18.0,  # NEW
     'Losing Exchange': 15.0,
     'Missed Material Gain': 12.0,
+    'Allowed Opportunity to Pressure Pinned Piece': 14.0,  # NEW
+    'Missed Opportunity to Pressure Pinned Piece': 12.0,  # NEW
     'Allowed Pin': 10.0,
     'Missed Pin': 8.0,
     'Mistake': 15.0
@@ -144,8 +156,12 @@ BLUNDER_EDUCATIONAL_DESCRIPTIONS = {
     'Allowed Winning Exchange for Opponent': 'You left pieces in positions where they could be captured with a favorable exchange for your opponent. While the piece was defended, the sequence of captures would result in material loss.',  # NEW
     'Missed Fork': 'You missed opportunities to attack two or more enemy pieces simultaneously with a single piece, forcing your opponent to lose material.',
     'Allowed Fork': 'Your move allowed your opponent to attack multiple pieces at once, forcing you to lose material. Look ahead to see if your moves give your opponent tactical opportunities.',
+    'Allowed Discovered Attack': 'Your move allowed your opponent to create a discovered attack, where moving one piece reveals an attack from another piece behind it, often winning material.',  # NEW
+    'Missed Discovered Attack': 'You missed opportunities to create discovered attacks by moving a piece to reveal an attack from another piece, potentially winning material.',  # NEW
     'Missed Material Gain': 'You missed chances to win material through captures or tactical sequences. Look for opportunities to win pieces or pawns.',
     'Losing Exchange': 'You initiated exchanges that lost you material overall. Calculate the value of pieces being traded before making exchanges.',
+    'Allowed Opportunity to Pressure Pinned Piece': 'Your move allowed your opponent to add pressure to one of your pinned pieces, potentially winning material through tactical sequences.',  # NEW
+    'Missed Opportunity to Pressure Pinned Piece': 'You missed opportunities to add pressure to your opponent\'s pinned pieces, potentially winning material through tactical pressure.',  # NEW
     'Missed Pin': 'You missed opportunities to pin enemy pieces, restricting their movement and creating tactical advantages.',
     'Allowed Pin': 'Your move allowed your opponent to pin one of your pieces, limiting your options and creating weaknesses in your position.',
     'Allowed Checkmate': 'Your move gave your opponent a forced checkmate sequence. Always check if your moves leave your king vulnerable.',
@@ -159,10 +175,14 @@ BLUNDER_GENERAL_DESCRIPTIONS = {
     "Missed Checkmate": "You had opportunities to checkmate your opponent but played different moves instead.", 
     "Allowed Fork": "Your moves allowed your opponent to fork (attack multiple pieces simultaneously) with a single piece.",
     "Missed Fork": "You missed chances to fork your opponent's pieces, potentially winning material or gaining tactical advantage.",
+    "Allowed Discovered Attack": "Your moves allowed your opponent to create discovered attacks, where moving one piece reveals an attack from another.",  # NEW
+    "Missed Discovered Attack": "You missed opportunities to create discovered attacks by moving pieces to reveal attacks from other pieces.",  # NEW
     "Allowed Pin": "You positioned your pieces in ways that allowed your opponent to pin them (restrict their movement by attacking through them to more valuable pieces).",
     "Missed Pin": "You overlooked opportunities to pin your opponent's pieces, missing tactical advantages.",
     "Hanging a Piece": "You left pieces undefended, allowing your opponent to capture them for free or with favorable exchanges.",
     "Allowed Winning Exchange for Opponent": "You positioned pieces where capturing them would win material for your opponent through a series of exchanges.",  # NEW
+    "Allowed Opportunity to Pressure Pinned Piece": "Your moves allowed your opponent to add tactical pressure to your pinned pieces, potentially winning material.",  # NEW
+    "Missed Opportunity to Pressure Pinned Piece": "You missed chances to add pressure to your opponent's pinned pieces, overlooking tactical opportunities.",  # NEW
     "Losing Exchange": "You initiated trades that resulted in losing more material value than you gained.",
     "Missed Material Gain": "You missed opportunities to capture opponent pieces or win material through tactical sequences.",
     "Mistake": "You made moves that significantly worsened your position according to engine evaluation."
