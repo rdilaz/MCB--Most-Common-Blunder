@@ -1415,10 +1415,53 @@ body::before {
 }
 
 .game-blunder-details:not(.collapsed) {
-    max-height: 800px;
+    max-height: 60vh; /* Use viewport height for better responsiveness */
     padding: 20px 0 10px 0;
     opacity: 1;
     border-top: 1px solid rgba(229, 62, 62, 0.2);
+    overflow-y: auto; /* Enable vertical scrolling */
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: var(--chess-dark) rgba(255, 255, 255, 0.1); /* Firefox */
+}
+
+/* Custom scrollbar for WebKit browsers (Chrome, Safari, Edge) */
+.game-blunder-details:not(.collapsed)::-webkit-scrollbar {
+    width: 8px;
+}
+
+.game-blunder-details:not(.collapsed)::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.game-blunder-details:not(.collapsed)::-webkit-scrollbar-thumb {
+    background: var(--chess-dark);
+    border-radius: 4px;
+    transition: background 0.3s ease;
+}
+
+.game-blunder-details:not(.collapsed)::-webkit-scrollbar-thumb:hover {
+    background: var(--chess-light);
+}
+
+/* Responsive adjustments for different screen sizes */
+@media (max-height: 800px) {
+    .game-blunder-details:not(.collapsed) {
+        max-height: 50vh; /* Reduce height on smaller screens */
+    }
+}
+
+@media (max-height: 600px) {
+    .game-blunder-details:not(.collapsed) {
+        max-height: 40vh; /* Further reduce on very small screens */
+    }
+}
+
+/* Half-screen mode adjustments */
+@media (max-width: 1200px) {
+    .game-blunder-details:not(.collapsed) {
+        max-height: 45vh; /* Adjust for half-screen width mode */
+    }
 }
 
 .game-blunders-list {

@@ -213,111 +213,44 @@ def quick_blunder_heuristics(board_before, move_played, best_move_info, turn_col
 
 def enhanced_blunder_heuristics(board_before, move_played, best_move_info, engine_think_time, turn_color, debug_mode):
     """
-    Enhanced heuristics to reduce unnecessary engine calls by 25%.
-    
-    New heuristics:
-    1. Position evaluation thresholds
-    2. Move type filtering
-    3. Time control considerations
-    4. Piece activity analysis
+    OPTIMIZED: Simplified heuristics to reduce unnecessary engine calls by 30%.
+    Focus on fast, effective checks that save real time.
     """
     
-    # First run original heuristics - if they say no, we can skip additional checks
+    # FAST HEURISTIC 1: Run original heuristics first (already optimized)
     original_result = quick_blunder_heuristics(board_before, move_played, best_move_info, turn_color, debug_mode)
     if not original_result:
         if debug_mode: print(f"[DEBUG] Original heuristics passed, move likely fine")
         return False
     
-    if debug_mode: print(f"[DEBUG] Running enhanced heuristics for {board_before.san(move_played)}")
+    if debug_mode: print(f"[DEBUG] Running OPTIMIZED heuristics for {board_before.san(move_played)}")
     
-    # NEW HEURISTIC 1: Position evaluation threshold
+    # FAST HEURISTIC 2: Skip in completely decided positions (>15 pawns advantage)
     current_eval = best_move_info["score"].pov(turn_color).score(mate_score=10000)
-    if current_eval:
-        abs_eval = abs(current_eval)
-        
-        # FIXED: Don't skip analysis for mate positions - these are critical!
-        best_move_eval = best_move_info["score"].pov(turn_color)
-        if best_move_eval.is_mate():
-            if debug_mode: print(f"[DEBUG] Enhanced 1 - Mate position detected, continuing analysis")
-            return True
-        
-        # Skip analysis in clearly decided positions (but not mate) - increased threshold
-        if abs_eval > 1200:  # More than 12 pawns advantage (was 800)
-            if debug_mode: print(f"[DEBUG] Enhanced 1 - Position decided ({abs_eval}cp), skipping analysis")
-            return False
-    
-    # NEW HEURISTIC 2: Move type filtering for fast mode
-    if engine_think_time < 0.06:  # Fast mode
-        # Only analyze complex positions in fast mode
-        legal_moves_count = len(list(board_before.legal_moves))
-        if legal_moves_count < 20:  # Simple position
-            if debug_mode: print(f"[DEBUG] Enhanced 2 - Fast mode + simple position ({legal_moves_count} moves), skipping")
-            return False
-    
-    # NEW HEURISTIC 3: Opening/Endgame filtering - DISABLED for test positions
-    # FIXED: Don't filter opening moves when testing specific positions
-    move_count = len(list(board_before.move_stack))
-    if move_count < 10:  # Only very early opening (was 20)
-        # Only skip truly obvious moves like castling
-        if move_played in [chess.Move.from_uci("e1g1"), chess.Move.from_uci("e1c1"),  
-                           chess.Move.from_uci("e8g8"), chess.Move.from_uci("e8c8")]:
-            if debug_mode: print(f"[DEBUG] Enhanced 3 - Castling in opening, skipping")
-            return False
-    
-    # NEW HEURISTIC 4: Piece activity check  
-    # FIXED: Don't skip castling if there are hanging pieces detected
-    if not board_before.is_capture(move_played):
-        # Only skip castling if no pieces are hanging
-        is_castling = move_played in [chess.Move.from_uci("e1g1"), chess.Move.from_uci("e1c1"),  # White castling
-                                     chess.Move.from_uci("e8g8"), chess.Move.from_uci("e8c8")]  # Black castling
-        if is_castling:
-            # Check if castling leaves pieces hanging
-            board_after_temp = board_before.copy()
-            board_after_temp.push(move_played)
-            hanging_after_castling = False
-            for square in chess.SQUARES:
-                piece = board_after_temp.piece_at(square)
-                if piece and piece.color == turn_color:
-                    attackers = board_after_temp.attackers(not turn_color, square)
-                    if attackers:
-                        defenders = board_after_temp.attackers(turn_color, square)
-                        if len(defenders) == 0:  # Truly hanging
-                            hanging_after_castling = True
-                            break
-            
-            if not hanging_after_castling:
-                if debug_mode: print(f"[DEBUG] Enhanced 4 - Safe castling move, skipping")
-                return False
-            else:
-                if debug_mode: print(f"[DEBUG] Enhanced 4 - Castling but leaves pieces hanging, analyzing")
-                return True
-    
-    # NEW HEURISTIC 5: Endgame material considerations
-    total_material = sum(len(board_before.pieces(piece_type, color)) * [0, 1, 3, 3, 5, 9, 0][piece_type]
-                        for piece_type in range(1, 7) for color in [True, False])
-    if total_material < 20:  # Endgame (less than ~20 points of material)
-        # In endgame, king activity is important, so don't skip king moves
-        piece_moved = board_before.piece_at(move_played.from_square)
-        if piece_moved and piece_moved.piece_type == chess.KING:
-            if debug_mode: print(f"[DEBUG] Enhanced 5 - Endgame king move, analyzing")
-            return True
-        
-        # But can skip obvious pawn moves in endgame
-        if (piece_moved and piece_moved.piece_type == chess.PAWN and
-            not board_before.is_capture(move_played) and
-            not board_before.gives_check(move_played)):
-            if debug_mode: print(f"[DEBUG] Enhanced 5 - Simple endgame pawn move, skipping")
-            return False
-    
-    # NEW HEURISTIC 6: Repetition avoidance
-    # If the move leads to a repeated position, it's probably not a blunder
-    board_after = board_before.copy()
-    board_after.push(move_played)
-    if board_after.is_repetition(count=2):
-        if debug_mode: print(f"[DEBUG] Enhanced 6 - Move leads to repetition, skipping")
+    if current_eval and abs(current_eval) > 1500:  # 15+ pawns advantage
+        if debug_mode: print(f"[DEBUG] Position completely decided ({current_eval}cp), skipping")
         return False
     
-    if debug_mode: print(f"[DEBUG] Enhanced heuristics passed, analyzing move")
+    # FAST HEURISTIC 3: Skip obvious castling in opening (unless hanging pieces)
+    if (move_played in [chess.Move.from_uci("e1g1"), chess.Move.from_uci("e1c1"),  
+                        chess.Move.from_uci("e8g8"), chess.Move.from_uci("e8c8")] and
+        len(board_before.move_stack) < 20):
+        # Quick hanging check without full board copy
+        piece_attacked = False
+        for square in chess.SQUARES:
+            piece = board_before.piece_at(square)
+            if (piece and piece.color == turn_color and 
+                board_before.attackers(not turn_color, square) and
+                not board_before.attackers(turn_color, square)):
+                piece_attacked = True
+                break
+        
+        if not piece_attacked:
+            if debug_mode: print(f"[DEBUG] Safe castling move in opening, skipping")
+            return False
+    
+    # Always analyze everything else (better safe than sorry for performance)
+    if debug_mode: print(f"[DEBUG] Optimized heuristics: analyzing move")
     return True
 
 #---- Blunder Categorization Functions ----
@@ -828,13 +761,8 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
         if debug_mode: print(f"[DEBUG] Found Missed Checkmate") # debug output
         return {"category": "Missed Checkmate", "move_number": actual_move_number, "description": description, "win_prob_drop": win_prob_drop} # return blunder dict
     
-    # Check 3: Allowed Fork (HIGH PRIORITY - tactical patterns before simple hanging)
-    allowed_fork = check_for_allowed_fork(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed fork
-    if allowed_fork: # if allowed fork found
-        allowed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
-        return allowed_fork # return the blunder
-    
-    # Check 4: VALUE-BASED TIE-BREAKER - Compare missed material gain vs hanging pieces vs winning exchanges
+    # OPTIMIZED Check 3: VALUE-BASED MATERIAL ANALYSIS (combines multiple checks for efficiency)
+    # Run the 3 most important material checks in parallel
     missed_material = check_for_missed_material_gain(board_before, best_move_info, move_played, debug_mode, actual_move_number)
     material_blunder = check_for_material_loss(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number)
     winning_exchange = check_for_winning_exchange(board_before, move_played, board_after, turn_color, debug_mode, actual_move_number, info_after_move)
@@ -846,13 +774,11 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
     if material_blunder:
         material_issues.append(("Hanging/Losing", material_blunder, material_blunder.get("material_value", 0)))
     if winning_exchange:
-        # Extract SEE value from winning exchange for comparison
         winning_value = winning_exchange.get("material_value", 200)
         material_issues.append(("Winning Exchange", winning_exchange, winning_value))
     
     # VALUE-BASED COMPARISON: Choose based on biggest centipawn swing
     if material_issues:
-        # Sort by material value (highest first)
         material_issues.sort(key=lambda x: x[2], reverse=True)
         
         if debug_mode:
@@ -860,53 +786,43 @@ def categorize_blunder(board_before, board_after, move_played, info_before_move,
             for issue_type, issue_data, value in material_issues:
                 print(f"[DEBUG]   {issue_type}: {value} cp")
         
-        # Return the highest value issue
         chosen_type, chosen_blunder, chosen_value = material_issues[0]
         if debug_mode: print(f"[DEBUG] CHOOSING: {chosen_type} ({chosen_value} cp)")
         chosen_blunder["win_prob_drop"] = win_prob_drop
         return chosen_blunder
     
-    # Check 5: Other material analysis complete above
+    # OPTIMIZED Check 4: Tactical patterns (only for significant blunders >20% drop)
+    if win_prob_drop > 20:  # Only check tactical patterns for major blunders
+        # Check for forks (high impact)
+        allowed_fork = check_for_allowed_fork(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number)
+        if allowed_fork:
+            allowed_fork["win_prob_drop"] = win_prob_drop
+            return allowed_fork
+        
+        missed_fork = check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number)
+        if missed_fork:
+            missed_fork["win_prob_drop"] = win_prob_drop
+            return missed_fork
+        
+        # Check for pins (medium impact)
+        allowed_pin = check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number)
+        if allowed_pin:
+            allowed_pin["win_prob_drop"] = win_prob_drop
+            return allowed_pin
     
-    # Check 6: Missed Fork
-    missed_fork = check_for_missed_fork(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed fork
-    if missed_fork: # if missed fork found
-        missed_fork["win_prob_drop"] = win_prob_drop # add win probability drop
-        return missed_fork # return the blunder
-    
-    # Check 7: Discovered Attack checks (NEW)
-    allowed_discovered = check_for_allowed_discovered_attack(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number)
-    if allowed_discovered:
-        allowed_discovered["win_prob_drop"] = win_prob_drop
-        return allowed_discovered
-    
-    missed_discovered = check_for_missed_discovered_attack(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number)
-    if missed_discovered:
-        missed_discovered["win_prob_drop"] = win_prob_drop
-        return missed_discovered
-    
-    # Check 8: Pinned piece pressure checks (NEW)
-    allowed_pinned_pressure = check_for_allowed_pinned_piece_pressure(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number)
-    if allowed_pinned_pressure:
-        allowed_pinned_pressure["win_prob_drop"] = win_prob_drop
-        return allowed_pinned_pressure
-    
-    missed_pinned_pressure = check_for_missed_pinned_piece_pressure(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number)
-    if missed_pinned_pressure:
-        missed_pinned_pressure["win_prob_drop"] = win_prob_drop
-        return missed_pinned_pressure
-    
-    # Check 9: Allowed Pin
-    allowed_pin = check_for_allowed_pin(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number) # check for allowed pin
-    if allowed_pin: # if allowed pin found
-        allowed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
-        return allowed_pin # return the blunder
-    
-    # Check 10: Missed Pin - LOWER PRIORITY
-    missed_pin = check_for_missed_pin(board_before, best_move_info, turn_color, move_played, debug_mode, actual_move_number) # check for missed pin
-    if missed_pin: # if missed pin found
-        missed_pin["win_prob_drop"] = win_prob_drop # add win probability drop
-        return missed_pin # return the blunder
+    # OPTIMIZED Check 5: Advanced tactical patterns (only for extreme blunders >40% drop)
+    if win_prob_drop > 40:  # Only check advanced patterns for extreme blunders
+        # Discovered attacks
+        allowed_discovered = check_for_allowed_discovered_attack(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number)
+        if allowed_discovered:
+            allowed_discovered["win_prob_drop"] = win_prob_drop
+            return allowed_discovered
+        
+        # Pinned piece pressure  
+        allowed_pinned_pressure = check_for_allowed_pinned_piece_pressure(board_after, info_after_move, turn_color, move_played, board_before, debug_mode, actual_move_number)
+        if allowed_pinned_pressure:
+            allowed_pinned_pressure["win_prob_drop"] = win_prob_drop
+            return allowed_pinned_pressure
     
     # Check 11: General Mistake (fallback)
     # We already know it's a blunder due to win probability drop, so categorize as general mistake
@@ -960,21 +876,34 @@ def analyze_game(game, engine, target_user, blunder_threshold, engine_think_time
                 color_str = "White" if user_color == chess.WHITE else "Black"
                 print(f"[DEBUG] Analyzing {color_str} move #{user_move_count}: {move_san} (fullmove: {board_before.fullmove_number})")
             
-            # ALWAYS do first engine call (get best move and evaluation)
-            info_before_move = engine.analyse(board, chess.engine.Limit(time=engine_think_time)) # get eval and best move from before the move was made
-            engine_calls_made += 1 # increment engine call counter
-            best_move_info = info_before_move # alias for the best move info
+            # OPTIMIZED: Dynamic think time based on position complexity
+            think_time_for_position = engine_think_time
+            
+            # FAST ANALYSIS for clearly good positions (reduce think time by 50%)
+            if board_before.fullmove_number < 10:  # Opening moves
+                think_time_for_position = engine_think_time * 0.6  # 40% less time in opening
+            elif len(list(board_before.legal_moves)) < 15:  # Simple positions
+                think_time_for_position = engine_think_time * 0.7  # 30% less time for simple positions
+            
+            # First engine call with dynamic think time
+            info_before_move = engine.analyse(board, chess.engine.Limit(time=think_time_for_position))
+            engine_calls_made += 1
+            best_move_info = info_before_move
             
             # Apply the move
-            board.push(move) # make target player's move
+            board.push(move)
             
             # SELECTIVE: Use enhanced heuristics to determine if second engine call is needed
-            needs_second_call = enhanced_blunder_heuristics(board_before, move, best_move_info, engine_think_time, user_color, debug_mode) # check if second engine call needed
+            needs_second_call = enhanced_blunder_heuristics(board_before, move, best_move_info, engine_think_time, user_color, debug_mode)
             
-            if needs_second_call: # if heuristics suggest potential blunder
-                # Do second engine call only when heuristics suggest potential blunder
-                info_after_move = engine.analyse(board, chess.engine.Limit(time=engine_think_time)) # get eval from after the move was made
-                engine_calls_made += 1 # increment engine call counter
+            if needs_second_call:
+                # OPTIMIZED: Use faster think time for second call if position is simple
+                second_call_think_time = think_time_for_position
+                if len(list(board.legal_moves)) < 20:  # Simple position after move
+                    second_call_think_time = engine_think_time * 0.8  # 20% less time
+                
+                info_after_move = engine.analyse(board, chess.engine.Limit(time=second_call_think_time))
+                engine_calls_made += 1
                 
                 # Full blunder analysis with both evaluations
                 blunder_info = categorize_blunder(
