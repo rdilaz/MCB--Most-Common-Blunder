@@ -82,7 +82,7 @@ const AnalysisForm = () => {
             onClick={toggleSettings}
             style={{ cursor: 'pointer' }}
           >
-            <h3>⚙️ Analysis Settings</h3>
+            <h3>⚙️ Settings</h3>
             <span className="toggle-icon">{isSettingsExpanded ? '▲' : '▼'}</span>
           </div>
           <div className={`settings-content ${isSettingsExpanded ? '' : 'collapsed'}`}>

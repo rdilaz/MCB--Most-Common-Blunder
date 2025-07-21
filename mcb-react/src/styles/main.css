@@ -432,22 +432,22 @@ body::before {
 
 .settings-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
     padding: 12px 16px;
-    transition: background 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease; /* Remove transition on all */
+    transition: background 0.3s ease, box-shadow 0.3s ease; /* Remove transform transition */
     border-radius: 12px;
-    margin: 0; /* Remove margin jump */
+    margin: 0;
     position: relative;
     z-index: 1;
-    min-height: 48px; /* Fixed height for stability */
+    min-height: 48px;
     box-sizing: border-box;
 }
 
 .settings-header:hover {
     background: rgba(255, 255, 255, 0.05);
     box-shadow: 0 2px 8px rgba(118, 150, 86, 0.2);
-    transform: translateY(0); /* Remove jump on hover */
+    /* Remove transform to keep same size */
 }
 
 .settings-header h3 {
@@ -2271,4 +2271,87 @@ body::before {
   .dev-header h3 {
     font-size: 1rem;
   }
+} 
+
+.analyze-btn {
+    height: 48px;
+    min-height: 48px;
+    font-size: 20px;
+    font-weight: 700;
+    padding: 0 32px;
+    margin: 16px 0;
+    display: inline-block;
+    line-height: 48px;
+    box-sizing: border-box;
+}
+
+.settings-panel {
+    min-height: 48px;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 16px 0;
+    display: block;
+    box-sizing: border-box;
+}
+
+.settings-header {
+    min-height: 48px;
+    height: 48px;
+    padding-top: 0;
+    padding-bottom: 0;
+    display: flex;
+    align-items: center;
+    box-sizing: border-box;
+    justify-content: center;
+    position: relative;
+}
+
+.settings-header .toggle-icon {
+    position: absolute;
+    right: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#username {
+    height: 48px;
+    min-height: 48px;
+    font-size: 18.4px;
+    font-weight: 400;
+    padding: 0 16px;
+    margin: 16px 0;
+    display: inline-block;
+    box-sizing: border-box;
+    background-color: rgba(70, 90, 126, 0.4);
+    color: #fff;
+}
+
+.input-group {
+    margin: 0;
+    padding: 0;
+} 
+
+.settings-panel.collapsed {
+    height: 48px;
+    min-height: 48px;
+    max-height: 48px;
+    overflow: hidden;
+    padding-top: 0;
+    padding-bottom: 0;
+    margin: 16px 0;
+    box-sizing: border-box;
+}
+
+.settings-content.collapsed {
+    display: none;
+} 
+
+.settings-header h3, .analyze-btn .btn-text {
+    font-family: 'Sofia Sans', sans-serif !important;
+    font-size: 1.05rem !important;
+    font-weight: 600 !important;
+    color: #ffffff !important;
+    letter-spacing: 0.5px !important;
+    text-transform: uppercase !important;
+    opacity: 0.9 !important;
 } 
