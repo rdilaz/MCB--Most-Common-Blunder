@@ -8,10 +8,12 @@ const HeroStat = ({ heroStat }) => {
 
   return (
     <div className="hero-stat">
-      <div className="hero-stat-header">
-        <h4 id="heroStatTitle">🥇 #1 Most Common: {heroStat.category}</h4>
-        <div className="hero-stat-score">
-          <span id="heroStatScore">{scoreText}</span>
+      <div className="hero-stat-header" style={{ alignItems: 'center' }}>
+        <h4 id="heroStatTitle" style={{ fontSize: '1.8rem', fontWeight: 600, margin: 0, color: '#fff', display: 'block' }}>🥇 #1 Most Common: {heroStat.category}</h4>
+        <div className="hero-stat-score" style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'nowrap', flexDirection: 'row', justifyContent: 'flex-end' }}>
+          <span id="heroStatScore" style={{ fontWeight: 600, fontSize: '1.8rem', color: '#f0d9b5', whiteSpace: 'nowrap', display: 'block', lineHeight: 1 }}>
+            Severity Score: {scoreText}
+          </span>
           <div className="severity-tooltip">
             <span className="tooltip-trigger"></span>
             <div className="tooltip-content">
@@ -22,7 +24,6 @@ const HeroStat = ({ heroStat }) => {
               Higher score = more frequent + more damaging mistakes.
             </div>
           </div>
-          <small>severity score</small>
         </div>
       </div>
       <div className="hero-stat-description">
