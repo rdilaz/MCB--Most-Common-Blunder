@@ -139,7 +139,7 @@ const DeveloperMode = () => {
                     type="range"
                     id="devThreshold"
                     min={5}
-                    max={30}
+                    max={40}
                     value={settings.blunderThreshold}
                     onChange={(e) => updateSettings({ blunderThreshold: parseInt(e.target.value) })}
                   />

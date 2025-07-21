@@ -129,7 +129,7 @@ const AnalysisForm = () => {
               <Slider
                 id="blunderThreshold"
                 min={5}
-                max={30}
+                max={40}
                 value={settings.blunderThreshold}
                 onChange={(e) => handleInputChange('blunderThreshold', parseInt(e.target.value))}
               />
