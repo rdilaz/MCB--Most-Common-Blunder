@@ -6,7 +6,8 @@
       "Bash(rm:*)",
       "Bash(python test:*)",
       "Bash(mkdir:*)",
-      "Bash(python:*)"
+      "Bash(python:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

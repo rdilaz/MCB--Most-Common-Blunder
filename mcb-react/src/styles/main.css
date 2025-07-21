@@ -2070,3 +2070,164 @@ body::before {
     padding: 24px;
   }
 } 
+
+/* Developer Mode Styles */
+.developer-mode {
+  margin-top: 2rem;
+  border-top: 2px solid var(--accent-secondary);
+  padding-top: 1rem;
+}
+
+.developer-toggle {
+  text-align: center;
+  margin-bottom: 1rem;
+}
+
+.dev-toggle-btn {
+  background: linear-gradient(135deg, var(--bg-secondary), var(--bg-tertiary));
+  border: 2px solid var(--accent-secondary);
+  color: var(--text-primary);
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  font-family: 'Sofia Sans', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-light);
+}
+
+.dev-toggle-btn:hover {
+  background: linear-gradient(135deg, var(--bg-tertiary), var(--accent-secondary));
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+}
+
+.dev-toggle-btn.active {
+  background: linear-gradient(135deg, var(--accent-secondary), var(--chess-green));
+  border-color: var(--chess-green);
+  color: var(--bg-primary);
+}
+
+.dev-panel {
+  background: var(--bg-secondary);
+  border: 1px solid var(--accent-secondary);
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: var(--shadow-light);
+  transition: all 0.3s ease;
+}
+
+.dev-panel.expanded {
+  max-height: none;
+}
+
+.dev-panel.collapsed {
+  max-height: 60px;
+}
+
+.dev-header {
+  background: linear-gradient(135deg, var(--bg-tertiary), var(--accent-secondary));
+  padding: 1rem 1.5rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1px solid var(--accent-secondary);
+}
+
+.dev-header h3 {
+  color: var(--text-primary);
+  font-family: 'Playfair Display', serif;
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+.dev-content {
+  padding: 1.5rem;
+  transition: all 0.3s ease;
+}
+
+.dev-content.collapsed {
+  display: none;
+}
+
+.pgn-textarea {
+  width: 100%;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-secondary);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-family: 'Sofia Sans', sans-serif;
+  font-size: 0.9rem;
+  padding: 1rem;
+  resize: vertical;
+  min-height: 120px;
+  transition: all 0.3s ease;
+}
+
+.pgn-textarea:focus {
+  outline: none;
+  border-color: var(--chess-green);
+  box-shadow: 0 0 0 2px rgba(118, 150, 86, 0.2);
+}
+
+.pgn-textarea::placeholder {
+  color: var(--text-muted);
+}
+
+.dev-settings {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 1rem;
+  margin: 1rem 0;
+}
+
+.dev-analyze-btn {
+  background: linear-gradient(135deg, var(--chess-green), var(--accent-secondary));
+  border: none;
+  color: var(--bg-primary);
+  padding: 1rem 2rem;
+  border-radius: 8px;
+  font-family: 'Sofia Sans', sans-serif;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-light);
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.dev-analyze-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-secondary), var(--chess-green));
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-medium);
+}
+
+.dev-analyze-btn:disabled {
+  background: var(--bg-tertiary);
+  color: var(--text-muted);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Responsive adjustments for developer mode */
+@media (max-width: 768px) {
+  .dev-settings {
+    grid-template-columns: 1fr;
+  }
+  
+  .dev-content {
+    padding: 1rem;
+  }
+  
+  .dev-header {
+    padding: 0.75rem 1rem;
+  }
+  
+  .dev-header h3 {
+    font-size: 1rem;
+  }
+} 

@@ -24,31 +24,36 @@ class ProgressTracker:
     Helper class to track and report progress during analysis with time-weighted calculations.
     """
     
-    def __init__(self, session_id: str, games_to_analyze: int = 1):
+    def __init__(self, session_id: str, games_to_analyze: int = 1, parallel: bool = False):
         """
         Initialize progress tracker for a session.
         
         Args:
             session_id (str): Unique session identifier
-            games_to_analyze (int): Number of games to analyze (affects time estimates)
+            games_to_analyze (int): Number of games to analyze
+            parallel (bool): Whether using parallel processing
         """
         self.session_id = session_id
         self.start_time = time.time()
         self.completed = False
         self.error_occurred = False
         self.results = None
+        self.parallel_processing = parallel
         
         # Create progress queue for this session immediately
         with progress_lock:
             progress_queues[session_id] = queue.Queue(maxsize=PROGRESS_QUEUE_MAX_SIZE)
         
-        # Time-weighted progress phases with realistic estimates (in seconds)
+        # Adjust time estimates for parallel processing
+        time_multiplier = 0.3 if parallel and games_to_analyze > 20 else 1.0
+        
+        # Time-weighted progress phases with parallel optimization
         self.phases = {
             "starting": {"weight": PROGRESS_PHASE_WEIGHTS["starting"], "completed": False},
             "fetching_games": {"weight": PROGRESS_PHASE_WEIGHTS["fetching_games"], "completed": False},
-            "engine_init": {"weight": PROGRESS_PHASE_WEIGHTS["engine_init"], "completed": False},
+            "engine_init": {"weight": PROGRESS_PHASE_WEIGHTS["engine_init"] * (2 if parallel else 1), "completed": False},
             "reading_pgn": {"weight": PROGRESS_PHASE_WEIGHTS["reading_pgn"], "completed": False},
-            "analyzing_games": {"weight": PROGRESS_PHASE_WEIGHTS["analyzing_games"] * games_to_analyze, "completed": False},
+            "analyzing_games": {"weight": PROGRESS_PHASE_WEIGHTS["analyzing_games"] * games_to_analyze * time_multiplier, "completed": False},
             "aggregating": {"weight": PROGRESS_PHASE_WEIGHTS["aggregating"], "completed": False},
         }
         
@@ -269,18 +274,19 @@ def get_progress_generator(session_id: str):
 # TRACKER MANAGEMENT
 # ========================================
 
-def create_progress_tracker(session_id: str, games_to_analyze: int = 1) -> ProgressTracker:
+def create_progress_tracker(session_id: str, games_to_analyze: int = 1, parallel: bool = False) -> ProgressTracker:
     """
     Create and register a new progress tracker.
     
     Args:
         session_id (str): Session identifier
         games_to_analyze (int): Number of games to analyze
+        parallel (bool): Whether using parallel processing
         
     Returns:
         ProgressTracker: Configured progress tracker
     """
-    tracker = ProgressTracker(session_id, games_to_analyze)
+    tracker = ProgressTracker(session_id, games_to_analyze, parallel)
     progress_trackers[session_id] = tracker
     return tracker
 

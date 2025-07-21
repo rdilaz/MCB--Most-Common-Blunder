@@ -23,11 +23,19 @@ GAMES_TO_FETCH = 1
 MAX_GAMES_ALLOWED = 100  # Hard cap to prevent server overload
 DAILY_GAME_LIMIT = 200   # Games per user per day
 
-# Analysis Depth Mapping (Balanced speed vs accuracy)
+# Analysis Optimization Settings
+POSITION_CACHE_SIZE = 1000      # LRU cache size for position analysis
+SEE_CACHE_SIZE = 512            # LRU cache size for SEE calculations
+ENABLE_PARALLEL_ANALYSIS = True  # Enable parallel game analysis
+DYNAMIC_THINK_TIME = True       # Enable dynamic engine think time adjustment
+MIN_THINK_TIME = 0.03          # Minimum engine think time (seconds)
+MAX_THINK_TIME = 0.3           # Maximum engine think time (seconds)
+
+# Analysis Depth Mapping (Optimized for speed vs accuracy balance)
 ANALYSIS_DEPTH_MAPPING = {
-    'fast': 0.08,     # FAST: 80ms per move (was 100ms)
-    'balanced': 0.15, # BALANCED: 150ms per move (was 200ms)  
-    'deep': 0.3       # DEEP: 300ms per move (was 500ms)
+    'fast': 0.05,      # FAST: 50ms per move (2x faster than before)
+    'balanced': 0.08,  # BALANCED: 80ms per move (optimal)
+    'deep': 0.12       # DEEP: 120ms per move (more accurate)
 }
 
 # ========================================
@@ -245,6 +253,11 @@ PARALLEL_MOVE_WORKERS = 2          # Number of concurrent move analysis workers 
 ENGINE_POOL_SIZE = 6               # Increased from 2 to support parallel processing
 GAME_BATCH_SIZE = 10               # Games per batch for parallel processing
 MEMORY_STREAMING_ENABLED = False   # Disable streaming for stability - collect in memory instead
+
+# Batch Processing Configuration
+ENABLE_GAME_BATCHING = True     # Enable batching for large analysis
+BATCH_SIZE_THRESHOLD = 50       # Use batching for 50+ games
+MOVES_PER_BATCH = 100          # Process 100 moves per batch
 
 # Performance Monitoring
 PERFORMANCE_LOGGING_ENABLED = True

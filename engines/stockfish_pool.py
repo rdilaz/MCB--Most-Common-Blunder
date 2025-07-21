@@ -66,6 +66,17 @@ class StockfishPool:
             except:
                 pass
 
+# Global engine pool instance
+_engine_pool = None
+
+def get_engine_pool() -> StockfishPool:
+    """Get the global engine pool instance"""
+    global _engine_pool
+    if _engine_pool is None:
+        from config import STOCKFISH_PATH, ENGINE_POOL_SIZE
+        _engine_pool = StockfishPool(STOCKFISH_PATH, ENGINE_POOL_SIZE)
+    return _engine_pool
+
 # For backwards compatibility and global pool management
 def create_stockfish_pool(stockfish_path: str, pool_size: int = 3) -> StockfishPool:
     """Create a new Stockfish pool"""

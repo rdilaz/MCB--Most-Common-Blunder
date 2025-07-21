@@ -1,0 +1,109 @@
+Game 3: roygbiv6 (white) vs VidnyGorod
+[Event "Live Chess"]
+[Site "Chess.com"]
+[Date "2025.07.19"]
+[Round "-"]
+[White "roygbiv6"]
+[Black "VidnyGorod"]
+[Result "0-1"]
+[CurrentPosition "4kb1r/3nqp1p/p1r4p/2p1p3/4P3/2P5/P1P2PPP/R4RK1 w k - 0 26"]
+[Timezone "UTC"]
+[ECO "A40"]
+[ECOUrl "https://www.chess.com/openings/Englund-Gambit-Declined-Reversed-French-Variation"]
+[UTCDate "2025.07.19"]
+[UTCTime "09:47:36"]
+[WhiteElo "240"]
+[BlackElo "241"]
+[TimeControl "180"]
+[Termination "VidnyGorod won on time"]
+[StartTime "09:47:36"]
+[EndDate "2025.07.19"]
+[EndTime "09:52:51"]
+[Link "https://www.chess.com/analysis/game/live/140864575760/analysis"]
+[WhiteUrl "https://images.chesscomfiles.com/uploads/v1/user/91906036.b68a338f.50x50o.4c82c5367dd9.jpeg"]
+[WhiteCountry "2"]
+[WhiteTitle ""]
+[BlackUrl "https://images.chesscomfiles.com/uploads/v1/user/426688901.c79f34f4.50x50o.ce6a33719b94.jpg"]
+[BlackCountry "116"]
+[BlackTitle ""]
+
+1. d4 e5 
+2. e3 $6 exd4 
+3. Qxd4 Qe7 
+4. Bd3 Nc6 
+5. Qc3 Nf6 
+6. Nf3 d6 
+7. O-O Bg4 
+8.Nd4 Ne5 $6
+9. Bd2 $2 Bd7 $2 
+10. Na3 $9 {You overlooked an opportunity to capture a free pawn.} a6 $2
+11. Nc4 $9 {You missed an opportunity to capture a free pawn.} Neg4 $9 
+12. Qa5 $9 {You missed an opportunity to kick a knight. You permitted the opponent to kick a knight.} c5 $4 
+13. Nf3 Bc6
+14. Qb6 $2 Nd7 
+15. Qa5 b6 $2 
+16. Qa3 $4 {You permitted the opponent to win a knight by trapping a piece.}  b5 $6 
+17. Na5 Bd5 $2 
+18. Qc3 $4 {You permitted the opponent to win a queen by trapping a piece.} Nge5 $9 
+19. Nxe5 dxe5 $2 
+20. e4 $4 {You allowed the opponent to win material by trapping a piece.}  b4 $1 
+21. Bb5 $2 {This move will cost you a queen.} bxc3 
+22. Nc6 Bxc6 
+23. Bxc6 Rc8 
+24. bxc3 $6 {You’ve just allowed your bishop to be taken without a fight.} Rxc6
+25. Bh6 gxh6 0-1
+
+Baseline (what MCB should pickup)
+7 blunders
+Move 10. Na3 Missed Opportunity To Gain Material Advantage (with xc7)
+Move 11. Nc4 Missed Opportunity To Gain Material Advantage (with xc7)
+Move 16. Qa3 Allowed Trapping of a Piece (Knight)
+(If the opponent plays pawn to d5, Knight on c4 cant move to a spot without getting captured.)
+Move 18. Qc3 Allowed Trapping of a Piece (Queen)
+(If the opponent plays pawn to b4, Queen on c3 cant move to any square without getting captured.)
+Move 20. e4 Allowed Trapping of a Piece (Queen)
+(If the opponent plays pawn to b4, Queen on c3 cant move to any square without getting captured.)
+Move 21. Bb5 Missed Material Gain 
+Opponent left bishop on d5 hanging, should have played exd5 even if losing the queen on next turn (queen is going to be lost anyways)
+Move 24. Bxc6 Hanging a Piece (Bishop) 
+
+What MCB did pickup (threshold 10%, Fast 0.08s per move)
+Move 2: Missed Material Gain-11.2% ↓ Your move e3 missed a chance to win a Pawn with dxe5. 
+This is a good callout
+Move 9: Allowed Winning Exchange for Opponent-11.2% ↓ Your move Bd2 left your Bishop on d3 defended, but the resulting exchange sequence starting with Nxd3 wins material for your opponent.
+This is technically wrong because the sequence starting with Nxd3 is not a winning exchange, and also Nxd3 is not the best response for black.
+This one is complicated. Chess.com says “You missed an opportunity to force the loss of castling rights (with b5+, which is the best move for white in this position). You allowed the opponent to kick a knight (with pawn c5)”
+I think this one should’ve just not been called out by MCB, and OR should be classified as “Allowed opponent to kick”. But its not a terrible blunder, so maybe we should just increase the threshold up to like 12-13, or just categorize this as a mistake. Definitely not allowed winning exchange for opponent though, so definitely at least we should test why the program thought this was a winning exchange, and fix the winning exchange logic.
+Move 10: Allowed Winning Exchange for Opponent-22.9% ↓ Your move Na3 left your Bishop on d3 defended, but the resulting exchange sequence starting with Nxd3 wins material for your opponent.
+This is interestingly the same callout as move 9, which is technically still incorrect. Taking Nxd3 is an equal trade in this position, not necessarily winning material. 
+Whats most important is that this one should've definitely been classified as “Missed opportunity to capture a free pawn”. On c7.
+Move 11: Allowed Winning Exchange for Opponent-26.0% ↓ Your move Nc4 left your Bishop on d3 defended, but the resulting exchange sequence starting with Nxd3 wins material for your opponent.
+This is the same callout as the last two, and is still technically incorrect. However, in this position nxd3 is actually the best move for the opponent, but because it is an “equal trade” for the opponent, not because its a material gain for the opponent.
+This one, like in the chess.com analysis, should've been missed a free pawn too, like move 10.
+Move 12: Mistake-21.2% ↓ Your move Qa5 dropped your win probability by 21.2%. The best move was h3.
+This is good that it classified it as a mistake, because the moves from chess.com say “You missed an opportunity to kick a knight. You permitted the opponent to kick a knight.”, and kicking is not a category i have added yet, so it's good that it didn't get mistakenly categorized as something else.
+Maybe we should consider adding a Missed Kick, and allowed Kick category.
+Also, this is a case where two blunders are identified in one move. This makes me wonder how to handle this, should i treat this as two separate blunders, meaning one move could have 2 blunders, possibly more? 
+Move 14: Allowed Winning Exchange for Opponent-17.0% ↓ Your move Qb6 left your Knight on f3 defended, but the resulting exchange sequence starting with Bxf3 wins material for your opponent.
+Another move classified as winning exchange for opponent. While technically in this case, Bxf3 is the best move, its still not necessarily because the opponent can win material through exchanges. 
+For chess.com, it just says “You overlooked an opportunity to activate a bishop.”, which i dont think MCB needs to identify at all. 
+
+Move 16: Allowed Winning Exchange for Opponent-36.2% ↓
+Your move Qa3 left your Knight on f3 defended, but the resulting exchange sequence starting with Bxf3 wins material for your opponent.
+So still not quite right. Bxf3 is not the best move for the opponent, and doesnt eventually win material for opponent.
+What this does do is a lose a knight due to falling for trap, this makes me think i should add a trap category as well. 
+chess.com says: “You permitted the opponent to win a knight by trapping a piece. You missed an opportunity to win material through an eventual pin.” I think the eventual pin that chess.com is talking about is too complicated, we dont need MCB to find that. 
+
+Move 18: Allowed Winning Exchange for Opponent-59.0% ↓
+Your move Qc3 left your Knight on f3 defended, but the resulting exchange sequence starting with Bxf3 wins material for your opponent.
+Similar thing here, and in this case, Bxf3 is actually a mistake for the opponent. 
+This should fall under the category of allowing a trap, “You permitted the opponent to win a queen by trapping a piece.”. 
+
+Move 20: Not picked up by MCB at all! 
+This was definitely a blunder and shouldve at least been calculated as a mistake. 
+“You allowed the opponent to win material by trapping a piece with b4.”
+
+Move 21: Allowed Winning Exchange for Opponent-15.7% ↓
+Your move Bb5 left your Queen on c3 defended, but the resulting exchange sequence starting with bxc3 wins material for your opponent.
+This is actually a relatively good callout. “This move will cost you a queen.” chess.com says. 
+But i think this also an opportunity to say missed hanging piece, because best move for white in this position was exd5 which captured a hanging bishop. Its complicated though because even though our best move is to capture a bishop, the opponent can capture queen next turn. 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useMCB } from '../../context/MCBContext';
 import { useAnalysis } from '../../hooks/useAnalysis';
 import Slider from '../ui/Slider';
+import DeveloperMode from './DeveloperMode';
 
 const AnalysisForm = () => {
   const { settings, updateSettings, validateSettings } = useMCB();
@@ -165,6 +166,9 @@ const AnalysisForm = () => {
           </span>
         </button>
       </form>
+
+      {/* Developer Mode - only visible in development */}
+      <DeveloperMode />
     </div>
   );
 };

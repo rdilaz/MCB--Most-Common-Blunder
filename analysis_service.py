@@ -11,6 +11,8 @@ import logging
 import io
 from typing import Dict, List, Any, Optional, Tuple
 from collections import Counter
+from functools import lru_cache
+import concurrent.futures
 
 import chess
 import chess.pgn
@@ -21,9 +23,9 @@ from config import (
     ANALYSIS_DEPTH_MAPPING, BLUNDER_GENERAL_DESCRIPTIONS,
     BLUNDER_EDUCATIONAL_DESCRIPTIONS, BASE_IMPACT_VALUES,
     CATEGORY_WEIGHTS, ESTIMATED_MOVES_PER_GAME, OPTIMIZATION_DESCRIPTIONS,
-    ENGINE_POOL_SIZE
+    ENGINE_POOL_SIZE, PARALLEL_GAME_WORKERS, ENABLE_PARALLEL_ANALYSIS
 )
-from engines.stockfish_pool import StockfishPool
+from engines.stockfish_pool import get_engine_pool
 from utils import (
     sanitize_blunders_for_json, format_game_metadata, 
     calculate_category_weight, Timer, log_error,
@@ -44,38 +46,23 @@ class AnalysisService:
         self.engine_pool = None  # Initialize lazily
         
     def _get_engine_pool(self):
-        """Get the engine pool, creating it if necessary"""
-        if self.engine_pool is None:
-            self.engine_pool = StockfishPool(self.stockfish_path, pool_size=ENGINE_POOL_SIZE)
-        return self.engine_pool
+        """Get the global engine pool instance"""
+        from engines.stockfish_pool import get_engine_pool
+        return get_engine_pool()
     
     def analyze_game_optimized(self, game, engine, target_user, blunder_threshold, engine_think_time, debug_mode):
         """
-        SPEED OPTIMIZED version of analyze_game with 3-5x performance improvement
-        
-        Optimizations:
-        1. Skip analysis in clearly decided positions (>8 pawn advantage)
-        2. Use reduced time for obvious moves
-        3. Smart move filtering
-        4. Maintain proper blunder categorization
+        Use the optimized analyze_game function directly from analyze_games.py
         """
-        try:
-            # ALWAYS use the original analyze_game function for proper categorization
-            # Speed improvements come from reduced engine think time, not simplified logic
-            from analyze_games import analyze_game
-            
-            return analyze_game(
-                game=game,
-                engine=engine, 
-                target_user=target_user,
-                blunder_threshold=blunder_threshold,
-                engine_think_time=engine_think_time,  # Already optimized (0.05s vs 0.1s+)
-                debug_mode=debug_mode
-            )
-        except Exception as e:
-            logger.error(f"Optimized analysis failed: {e}")
-            # Fallback to empty list
-            return []
+        from analyze_games import analyze_game_optimized
+        return analyze_game_optimized(
+            game=game,
+            engine=engine,
+            target_user=target_user,
+            blunder_threshold=blunder_threshold,
+            engine_think_time=engine_think_time,
+            debug_mode=debug_mode
+        )
 
     def analyze_games_with_settings(self, pgn_content: str, username: str, 
                                   engine_think_time: float, tracker: ProgressTracker,
