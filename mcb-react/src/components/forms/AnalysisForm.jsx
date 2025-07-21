@@ -103,18 +103,32 @@ const AnalysisForm = () => {
 
             <div className="setting-group">
               <label htmlFor="gameTypes">Game Types</label>
-              <select 
-                multiple 
-                id="gameTypes" 
-                className="multi-select"
-                value={settings.gameTypes}
-                onChange={handleGameTypesChange}
-              >
-                <option value="bullet">🔥 Bullet (1-2 min)</option>
-                <option value="blitz">⚡ Blitz (3-5 min)</option>
-                <option value="rapid">🎯 Rapid (10-15 min)</option>
-                <option value="classical">🏰 Classical (30+ min)</option>
-              </select>
+              <div className="game-types-list">
+                {[
+                  { value: 'bullet', label: 'Bullet (1-2 min)', img: '/bullet_8341453.png' },
+                  { value: 'blitz', label: 'Blitz (3-5 min)', img: '/bolt_6771066.png' },
+                  { value: 'rapid', label: 'Rapid (10-15 min)', img: '/timer_6771110.png' },
+                  { value: 'classical', label: 'Classical (30+ min)', img: '/sun_553402.png' },
+                ].map(type => (
+                  <label key={type.value} style={{ display: 'flex', alignItems: 'center', marginBottom: 6, cursor: 'pointer', gap: 8 }}>
+                    <input
+                      type="checkbox"
+                      value={type.value}
+                      checked={settings.gameTypes.includes(type.value)}
+                      onChange={e => {
+                        const checked = e.target.checked;
+                        const newTypes = checked
+                          ? [...settings.gameTypes, type.value]
+                          : settings.gameTypes.filter(t => t !== type.value);
+                        updateSettings({ gameTypes: newTypes });
+                      }}
+                      style={{ marginRight: 6 }}
+                    />
+                    <img src={type.img} alt={type.value} style={{ width: '1.3em', height: '1.3em', objectFit: 'contain', marginRight: 6 }} />
+                    {type.label}
+                  </label>
+                ))}
+              </div>
               <small>Hold Ctrl/Cmd to select multiple</small>
             </div>
 
