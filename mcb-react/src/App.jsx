@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 // Stagewise toolbar (AI-powered UI editing)
 // Only loaded in development builds – the package handles conditional rendering internally
 import { StagewiseToolbar } from '@stagewise/toolbar-react';
@@ -11,12 +11,31 @@ import './styles/main.css';
 
 // Inner App component that has access to MCB context
 const AppContent = () => {
-  const { resetState } = useMCB();
+  const { ui, analysis, resetState } = useMCB();
+  const progressRef = useRef(null);
+  const resultsRef = useRef(null);
+
+  useEffect(() => {
+    if (analysis.sessionId && ui.progressVisible && progressRef.current) {
+      setTimeout(() => {
+        progressRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 100); // Small delay to ensure the element is rendered
+    }
+  }, [analysis.sessionId]); // Re-trigger scroll on every new analysis
+
+  useEffect(() => {
+    if (ui.resultsVisible && resultsRef.current) {
+      setTimeout(() => {
+        resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 100); // Small delay for rendering
+    }
+  }, [ui.resultsVisible]);
 
   // Logo click to reset functionality (was missing!)
   const handleLogoClick = () => {
-    resetState();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (window.confirm("Do you want to start a new analysis? This will clear the current session.")) {
+      resetState();
+    }
   };
 
   // Global error handling (was missing!)
@@ -69,10 +88,13 @@ const AppContent = () => {
         <AnalysisForm />
         
         {/* Progress Section */}
-        <ProgressBar />
+        <div ref={progressRef}>
+          {ui.progressVisible && <ProgressBar />}
+        </div>
         
-        {/* Results Section */}
-        <ResultsSection />
+        <div ref={resultsRef}>
+          {ui.resultsVisible && <ResultsSection />}
+        </div>
       </main>
 
       <footer className="footer">

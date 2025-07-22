@@ -2,6 +2,7 @@
 
 /* Google Fonts Import */
 @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,600;1,700&family=Sofia+Sans:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;1,100;1,200;1,300;1,400;1,500;1,600;1,700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Sofia+Sans:wght@400;600&display=swap');
 
 /* Font Declarations */
 @font-face {
@@ -49,6 +50,9 @@
     --shadow-light: 0 2px 8px rgba(0, 0, 0, 0.3);
     --shadow-medium: 0 4px 16px rgba(0, 0, 0, 0.4);
     --shadow-heavy: 0 8px 32px rgba(0, 0, 0, 0.5);
+
+    font-family: 'Sofia Sans', sans-serif, system-ui, Avenir, Helvetica, Arial, sans-serif;
+    line-height: 1.5;
 }
 
 * {
@@ -480,6 +484,7 @@ body::before {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 24px;
+    padding-top: 5px; /* Add space for hover animation */
 }
 
 .setting-group {
@@ -519,6 +524,18 @@ body::before {
     opacity: 1;
 }
 
+.setting-group.active {
+    transform: translateY(-3px);
+    border-color: rgba(118, 150, 86, 0.3);
+    box-shadow: 
+        0 8px 24px rgba(0, 0, 0, 0.3),
+        0 0 0 1px rgba(118, 150, 86, 0.2);
+}
+
+.setting-group.active::before {
+    opacity: 1;
+}
+
 .setting-group label {
     display: block;
     font-weight: 600;
@@ -526,6 +543,7 @@ body::before {
     margin-bottom: 14px;
     font-size: 1.05rem;
     opacity: 0.95;
+    border: 1px solid var(--border-color); /* Using existing color variables */
 }
 
 /* Custom dropdown wrapper */
@@ -2372,4 +2390,46 @@ body::before {
 .settings-content {
     margin-top: 0 !important;
     padding-top: 0 !important;
+}
+
+/* Settings Summary Styles */
+.settings-summary {
+  font-family: 'Sofia Sans', sans-serif;
+  margin-top: 15px;
+  margin-bottom: 15px;
+  padding: 15px;
+  background-color: var(--background-secondary); /* Using existing color variables */
+  border-radius: 8px;
+  font-size: 1.2em; /* Increased font size */
+  color: var(--text-primary); /* Using existing color variables */
+  line-height: 1.8; /* Increased line height for more space */
+  text-align: left;
+  border: 1px solid var(--border-color); /* Using existing color variables */
+  letter-spacing: 0.5px; /* Added letter spacing */
+}
+
+.highlight, .highlight-missing {
+  background-color: rgba(255, 255, 255, 0.12); /* Brighter/more visible highlight */
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.highlight:hover, .highlight-missing:hover {
+  background-color: rgba(118, 150, 86, 0.3);
+  box-shadow: 0 0 10px rgba(118, 150, 86, 0.5);
+  color: #fff;
+}
+
+.highlight-missing {
+  background-color: rgba(255, 0, 0, 0.15);
+  color: #c00;
+  border-bottom: 2px solid #c00;
+}
+
+.highlight-missing:hover {
+    background-color: rgba(255, 0, 0, 0.3);
+    color: #fff;
 }
