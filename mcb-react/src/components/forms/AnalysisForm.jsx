@@ -63,7 +63,6 @@ const AnalysisForm = () => {
     <div className="input-section">
       <form onSubmit={handleSubmit}>
         <div className="input-group">
-          <label htmlFor="username">Chess.com Username</label>
           <input
             type="text"
             id="username"
