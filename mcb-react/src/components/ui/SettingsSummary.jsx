@@ -29,6 +29,7 @@ const SettingsSummary = ({ onSummaryClick }) => {
   };
 
   const renderGameCount = () => {
+    if (gameCount === 1) return null;
     return <span className="highlight" onClick={() => onSummaryClick('gameCount')}>{gameCount}</span>;
   };
 
@@ -36,15 +37,16 @@ const SettingsSummary = ({ onSummaryClick }) => {
     if (gameTypes.length === 0 || gameTypes.length === allGameTypes.length) {
       return null;
     }
+    const connector = gameCount === 1 ? 'or' : '&';
     let gameTypesString;
     if (gameTypes.length === 1) {
       gameTypesString = gameTypes[0];
     } else if (gameTypes.length === 2) {
-      gameTypesString = `${gameTypes[0]} & ${gameTypes[1]}`;
+      gameTypesString = `${gameTypes[0]} ${connector} ${gameTypes[1]}`;
     } else {
       const last = gameTypes[gameTypes.length - 1];
       const rest = gameTypes.slice(0, -1).join(', ');
-      gameTypesString = `${rest}, & ${last}`;
+      gameTypesString = `${rest}, ${connector} ${last}`;
     }
     return <> <span className="highlight" onClick={() => onSummaryClick('gameTypes')}>{gameTypesString}</span></>;
   };
@@ -58,11 +60,12 @@ const SettingsSummary = ({ onSummaryClick }) => {
   };
 
   const renderGameResult = () => {
+    const gameNoun = gameCount === 1 ? 'game' : 'games';
     if (gameResult === 'all') {
-      return ' games,';
+      return ` ${gameNoun},`;
     }
     const resultText = gameResult === 'wins' ? 'that resulted in a win' : 'that resulted in a loss';
-    return <> games <span className="highlight" onClick={() => onSummaryClick('gameResult')}>{resultText}</span>,</>;
+    return <> {gameNoun} <span className="highlight" onClick={() => onSummaryClick('gameResult')}>{resultText}</span>,</>;
   };
   
   const renderAnalysisDepth = () => {

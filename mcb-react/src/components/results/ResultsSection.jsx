@@ -1,37 +1,40 @@
 import React from 'react';
 import { useMCB } from '../../context/MCBContext';
-import { formatAnalysisStats } from '../../utils/templateHelpers';
 import HeroStat from '../ui/HeroStat';
-import BlunderItem from '../ui/BlunderItem';
-import BlundersSection from './BlundersSection';
 import GamesSection from './GamesSection';
+import BlundersSection from './BlundersSection';
 
 const ResultsSection = () => {
-  const { ui, analysis } = useMCB();
+  const { analysis, ui } = useMCB();
 
-  if (!ui.resultsVisible || !analysis.results) return null;
+  if (!analysis.results) {
+    return null;
+  }
 
-  const { results } = analysis;
+  const getAnalysisDuration = () => {
+    if (analysis.results.analysis_time_seconds) {
+      return analysis.results.analysis_time_seconds.toFixed(2);
+    }
+    if (ui.progressLogs && ui.progressLogs.length > 1) {
+      const startTime = ui.progressLogs[0].rawTimestamp;
+      const endTime = ui.progressLogs[ui.progressLogs.length - 1].rawTimestamp;
+      return ((endTime - startTime) / 1000).toFixed(2);
+    }
+    return 'a few';
+  };
+
+  const gameNoun = analysis.results.games_analyzed === 1 ? 'game' : 'games';
 
   return (
     <div className="results-section">
-      <div className="results-header">
-        <h3>🎯 Your Most Common Blunders</h3>
-        <p className="analysis-stats">
-          {formatAnalysisStats(results.games_analyzed, results.total_blunders)}
-        </p>
-      </div>
+      {/* Hero Stat - The Most Common Blunder */}
+      {analysis.results.hero_stat && <HeroStat heroStat={analysis.results.hero_stat} />}
 
-      {/* Hero Stat */}
-      {results.hero_stat && (
-        <HeroStat heroStat={results.hero_stat} />
-      )}
+      {/* Other Blunders */}
+      {analysis.results.blunder_breakdown && <BlundersSection blunders={analysis.results.blunder_breakdown} />}
 
-      {/* Blunder Breakdown Section */}
-      <BlundersSection blunders={results.blunder_breakdown || []} />
-
-      {/* Games with Blunders Section */}
-      <GamesSection games={results.games_with_blunders || []} />
+      {/* Games By Blunders */}
+      {analysis.results.games_with_blunders && <GamesSection games={analysis.results.games_with_blunders} />}
     </div>
   );
 };

@@ -1343,6 +1343,7 @@ body::before {
     max-height: 600px;
     overflow-y: auto;
     padding-right: 8px;
+    padding-top: 5px; /* Add space for hover animation */
     /* Custom scrollbar styling */
 }
 
@@ -1640,6 +1641,7 @@ body::before {
     overflow-y: auto;
     padding-right: 8px;
     padding-bottom: 20px;
+    padding-top: 5px; /* Add space for hover animation */
 }
 
 .blunder-item {

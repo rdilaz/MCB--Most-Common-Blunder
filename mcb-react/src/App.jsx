@@ -26,7 +26,9 @@ const AppContent = () => {
   useEffect(() => {
     if (ui.resultsVisible && resultsRef.current) {
       setTimeout(() => {
-        resultsRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        const yOffset = -80; // Negative offset to add padding on top
+        const y = resultsRef.current.getBoundingClientRect().top + window.pageYOffset + yOffset;
+        window.scrollTo({ top: y, behavior: 'smooth' });
       }, 100); // Small delay for rendering
     }
   }, [ui.resultsVisible]);
