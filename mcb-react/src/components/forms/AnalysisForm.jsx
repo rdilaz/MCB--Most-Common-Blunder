@@ -129,7 +129,6 @@ const AnalysisForm = () => {
                   </label>
                 ))}
               </div>
-              <small>Hold Ctrl/Cmd to select multiple</small>
             </div>
 
             <div className="setting-group">
