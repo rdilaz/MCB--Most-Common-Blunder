@@ -50,7 +50,7 @@ class AnalysisService:
         from engines.stockfish_pool import get_engine_pool
         return get_engine_pool()
     
-    def analyze_game_optimized(self, game, engine, target_user, blunder_threshold, engine_think_time, debug_mode):
+    def analyze_game_optimized(self, game, engine, target_user, blunder_threshold, engine_think_time, debug_mode, stockfish_path, threads):
         """
         Use the optimized analyze_game function directly from analyze_games.py
         """
@@ -61,7 +61,9 @@ class AnalysisService:
             target_user=target_user,
             blunder_threshold=blunder_threshold,
             engine_think_time=engine_think_time,
-            debug_mode=debug_mode
+            debug_mode=debug_mode,
+            stockfish_path=stockfish_path,
+            threads=threads
         )
 
     def analyze_games_with_settings(self, pgn_content: str, username: str, 
@@ -217,7 +219,9 @@ class AnalysisService:
                             target_user=username,
                             blunder_threshold=blunder_threshold,
                             engine_think_time=engine_think_time,
-                            debug_mode=False
+                            debug_mode=False,
+                            stockfish_path=stockfish_path,
+                            threads=1 # Sequential processing uses 1 thread
                         )
                         
                         # Add game metadata to each blunder for enhanced frontend display
@@ -554,7 +558,9 @@ class AnalysisService:
                         target_user=username,
                         blunder_threshold=blunder_threshold,
                         engine_think_time=engine_think_time,
-                        debug_mode=False
+                        debug_mode=False,
+                        stockfish_path=self.stockfish_path,
+                        threads=PARALLEL_GAME_WORKERS
                     )
                     
                     # Add metadata with proper game indexing

@@ -10,6 +10,29 @@ from dataclasses import dataclass
 from functools import lru_cache
 import concurrent.futures
 
+# ---- Opening Book (Placeholder for Optimization) ----
+# To enable, download a polyglot book (e.g., gm2001.bin) and place it in the project root.
+try:
+    import chess.polyglot
+    # You can specify a path to your book here
+    BOOK_PATH = "gm2001.bin" 
+    if os.path.exists(BOOK_PATH):
+        OPENING_BOOK = chess.polyglot.open_reader(BOOK_PATH)
+    else:
+        OPENING_BOOK = None
+except (ImportError, Exception):
+    OPENING_BOOK = None
+
+def is_book_move(board: chess.Board, move: chess.Move) -> bool:
+    """Checks if a move is in the loaded opening book."""
+    if OPENING_BOOK:
+        try:
+            # The find() method on a reader looks for an entry for the given board AND move
+            return OPENING_BOOK.find(board, move) is not None
+        except (IndexError, RuntimeError): # Readers can throw errors on some positions
+            return False
+    return False
+
 # ---- Constants ----
 STOCKFISH_PATH_DEFAULT = os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe")
 BLUNDER_THRESHOLD_DEFAULT = 20.0
@@ -253,6 +276,21 @@ def see_uncached(board, move):
 def see(board, move):
     """SEE with caching"""
     return see_cached(board.fen(), move.uci())
+
+def is_obvious_recapture(board: chess.Board, move: chess.Move, opponent_last_move: Optional[chess.Move]) -> bool:
+    """
+    Checks if a move is an obvious recapture.
+    An obvious recapture is when a piece is recaptured on the same square
+    the opponent just moved to, and the exchange is not clearly bad.
+    """
+    if not opponent_last_move:
+        return False
+    
+    if board.is_capture(move) and move.to_square == opponent_last_move.to_square:
+        # It's a recapture. Check if it's not a significantly losing exchange.
+        if see(board, move) >= 0:
+            return True
+    return False
 
 def cp_to_win_prob(cp):
     """Convert centipawns to win probability"""
@@ -1136,32 +1174,59 @@ def check_for_hanging_piece_optimized(board_before, move_played, board_after, tu
     
     return None
 
-def quick_heuristics_optimized(board_before, move_played, best_move_info, turn_color, state_manager, debug_mode):
-    """Ultra-fast heuristics using minimal computation"""
-    # Skip endgame positions with few pieces
-    if board_before.fullmove_number > 30 and len(board_before.piece_map()) < 10:
+def quick_heuristics_optimized(board_before, move_played, best_move_info, turn_color, state_manager, debug_mode, opponent_last_move):
+    """Ultra-fast heuristics using minimal computation based on optimization plan."""
+    # 1. Forced moves (very cheap check, do first)
+    if board_before.legal_moves.count() == 1:
+        if debug_mode:
+            print(f"[DEBUG] Skipping analysis: forced move.")
+        return False
+
+    # 2. Book moves (in opening)
+    if board_before.fullmove_number <= 10 and is_book_move(board_before, move_played):
+        if debug_mode:
+            print(f"[DEBUG] Skipping analysis: book move.")
+        return False
+
+    # 3. Obvious recaptures
+    if is_obvious_recapture(board_before, move_played, opponent_last_move):
+        if debug_mode:
+            print(f"[DEBUG] Skipping analysis: obvious recapture.")
+        return False
+        
+    # 4. Simple endgames (more aggressive than before)
+    if len(board_before.piece_map()) < 7: # As per plan
         eval_cp = best_move_info["score"].pov(turn_color).score(mate_score=10000)
+        # Skip if evaluation is quiet (e.g., within a pawn's value)
         if eval_cp is not None and abs(eval_cp) < 100:
             if debug_mode:
-                print(f"[DEBUG] Skipping quiet endgame position")
+                print(f"[DEBUG] Skipping analysis: quiet endgame position with < 7 pieces.")
             return False
-    
-    # Always analyze tactical positions
-    if board_before.fullmove_number <= 20:  # Opening/middlegame
-        return True
-    
-    # Always analyze if best move is mate or capture
+
+    # --- Existing Heuristics (still valuable) ---
+
+    # Always analyze if the engine's best move is a capture or leads to mate
     if best_move_info["score"].pov(turn_color).is_mate():
         return True
     
     if best_move_info.get('pv') and board_before.is_capture(best_move_info['pv'][0]):
         return True
     
-    # Always analyze our captures
+    # Always analyze our captures or checks, as they are tactically sharp
     if board_before.is_capture(move_played) or board_before.gives_check(move_played):
         return True
+
+    # --- Default Behavior ---
+
+    # For other moves, if we are past the opening, default to not analyzing unless a heuristic above was met.
+    # This will reduce engine calls.
+    if board_before.fullmove_number > 10:
+        if debug_mode:
+            print(f"[DEBUG] Skipping analysis: non-critical middlegame/endgame move.")
+        return False
     
-    return True  # Default to analyzing
+    # In the opening, it's generally good to analyze more moves.
+    return True
 
 def categorize_blunder_optimized(board_before, board_after, move_played, info_before_move, info_after_move, 
                                 best_move_info, state_manager, debug_mode, actual_move_number):
@@ -1203,7 +1268,8 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
                     "category": "Allowed Checkmate",
                     "move_number": actual_move_number,
                     "description": f"your move {move_played_san} allows checkmate in {mate_in}",
-                    "win_prob_drop": win_prob_drop
+                    "win_prob_drop": win_prob_drop,
+                    "move_san": move_played_san
                 }
     
     # 2. Missed checkmate
@@ -1218,7 +1284,8 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
                 "category": "Missed Checkmate",
                 "move_number": actual_move_number,
                 "description": f"your move {move_played_san} missed checkmate in {mate_in} with {best_move_san}",
-                "win_prob_drop": max(win_prob_drop, 50.0)
+                "win_prob_drop": max(win_prob_drop, 50.0),
+                "move_san": move_played_san
             }
     
     # 3. Material issues (most common)
@@ -1228,6 +1295,7 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
                                                           turn_color, state_manager, debug_mode, actual_move_number)
         if hanging_result:
             hanging_result["win_prob_drop"] = win_prob_drop
+            hanging_result["move_san"] = move_played_san
             return hanging_result
         
         # Check missed material
@@ -1235,6 +1303,7 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
                                                                   state_manager, debug_mode, actual_move_number)
         if missed_material:
             missed_material["win_prob_drop"] = win_prob_drop
+            missed_material["move_san"] = move_played_san
             return missed_material
     
     # 4. Traps (only if significant drop)
@@ -1244,6 +1313,7 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
         if trap_result:
             trap_result["move_number"] = actual_move_number
             trap_result["win_prob_drop"] = win_prob_drop
+            trap_result["move_san"] = move_played_san
             return trap_result
     
     # 5. General mistakes (threshold-based)
@@ -1275,74 +1345,77 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
                 "category": severity,
                 "move_number": actual_move_number,
                 "description": f"your move {move_played_san} is a {severity.lower()} (win probability dropped {win_prob_drop:.1f}%). Better was {best_move_san}",
-                "win_prob_drop": win_prob_drop
+                "win_prob_drop": win_prob_drop,
+                "move_san": move_played_san
             }
     
     return None
 
-def analyze_game_optimized(game, engine, target_user, blunder_threshold, engine_think_time, debug_mode):
-    """Optimized game analysis with minimal engine calls"""
+def analyze_positions_batch(engine, positions_and_limits, debug_mode):
+    """
+    Analyze multiple positions in a single batch for efficiency.
+    Args:
+        engine: Chess engine instance
+        positions_and_limits: List of (board, limit) tuples
+        debug_mode: Debug flag
+    Returns:
+        List of analysis info objects
+    """
+    results = []
+    # Check if engine supports batch analysis
+    if hasattr(engine, 'analyse_batch'):
+        # Use native batch support
+        results = engine.analyse_batch(positions_and_limits)
+    else:
+        # Fallback to sequential with reduced overhead
+        for board, limit in positions_and_limits:
+            results.append(engine.analyse(board, limit))
+    return results
+
+def analyze_chunk(chunk_data):
+    """
+    Analyzes a chunk of moves for a single player. This function is designed
+    to be run in a separate thread.
+    """
+    (start_fen, moves_in_chunk, user_color, target_user, 
+     blunder_threshold, engine_think_time, debug_mode, stockfish_path) = chunk_data
+
     blunders = []
-    board = game.board()
-    user_color = None
+    # Each thread needs its own engine instance
+    engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
     state_manager = BlunderStateManager()
+    board = chess.Board(start_fen)
     
-    total_moves = 0
-    engine_calls_made = 0
-    user_move_count = 0
-
-    # Determine user color
-    if game.headers.get("White", "").lower() == target_user.lower():
-        user_color = chess.WHITE
-    elif game.headers.get("Black", "").lower() == target_user.lower():
-        user_color = chess.BLACK
-    
-    if user_color is None:
-        print(f"User '{target_user}' not found in this game. Skipping.")
-        return []
-
-    # Pre-calculate all moves for efficiency
-    all_moves = list(game.mainline_moves())
-    
-    # Analyze each move
-    for move_idx, move in enumerate(all_moves):
+    for move_uci in moves_in_chunk:
+        move = chess.Move.from_uci(move_uci)
         if board.turn == user_color:
-            total_moves += 1
-            user_move_count += 1
             board_before = board.copy()
             
+            # Since we don't have the full game history here, opponent_last_move is tricky.
+            # For the purpose of recapture heuristics, we can look at the last move on the board.
+            opponent_last_move = board.move_stack[-1] if board.move_stack else None
             actual_move_number = board_before.fullmove_number
-            
-            if debug_mode:
-                move_san = board_before.san(move)
-                color_str = "White" if user_color == chess.WHITE else "Black"
-                print(f"[DEBUG] Analyzing {color_str} move #{actual_move_number}: {move_san}")
             
             # Dynamic think time
             think_time = engine_think_time
             if board_before.fullmove_number < 10:
-                think_time *= 1.2  # Slightly more time in opening
+                think_time *= 1.2
             elif board_before.fullmove_number > 40:
-                think_time *= 0.8  # Less time in endgame
+                think_time *= 0.8
             
-            # First engine call
             info_before_move = engine.analyse(board, chess.engine.Limit(time=think_time))
-            engine_calls_made += 1
             best_move_info = info_before_move
             
-            # Apply move
             board.push(move)
             
-            # Quick heuristics
-            needs_analysis = quick_heuristics_optimized(board_before, move, best_move_info, user_color, 
-                                                       state_manager, debug_mode)
+            needs_analysis = quick_heuristics_optimized(
+                board_before, move, best_move_info, user_color, 
+                state_manager, debug_mode, opponent_last_move
+            )
             
             if needs_analysis:
-                # Second engine call
                 info_after_move = engine.analyse(board, chess.engine.Limit(time=think_time))
-                engine_calls_made += 1
                 
-                # Categorize
                 blunder_info = categorize_blunder_optimized(
                     board_before, board, move, info_before_move, info_after_move,
                     best_move_info, state_manager, debug_mode, actual_move_number
@@ -1353,16 +1426,90 @@ def analyze_game_optimized(game, engine, target_user, blunder_threshold, engine_
                     if not state_manager.has_reported(blunder_key):
                         blunders.append(blunder_info)
                         state_manager.mark_reported(blunder_key)
-            else:
-                if debug_mode:
-                    print(f"[DEBUG] Skipping deep analysis")
         else:
             board.push(move)
+            
+    engine.quit()
+    return blunders
+
+def analyze_game_optimized(game, engine, target_user, blunder_threshold, engine_think_time, debug_mode, stockfish_path, threads):
+    """
+    Optimized game analysis with smart engine batching (Phase 1, Step 1.1).
+    """
+    blunders = []
+    board = game.board()
+    user_color = None
+
+    if game.headers.get("White", "").lower() == target_user.lower():
+        user_color = chess.WHITE
+    elif game.headers.get("Black", "").lower() == target_user.lower():
+        user_color = chess.BLACK
     
-    if debug_mode and total_moves > 0:
-        calls_per_move = engine_calls_made / total_moves
-        print(f"[DEBUG] Engine efficiency: {engine_calls_made} calls / {total_moves} moves = {calls_per_move:.2f} calls/move")
-    
+    if user_color is None:
+        print(f"User '{target_user}' not found in this game. Skipping.")
+        return []
+
+    all_moves = list(game.mainline_moves())
+    state_manager = BlunderStateManager()
+    board = game.board()
+    positions_to_analyze = []
+    move_indices = []
+    move_data = []
+
+    # First pass: collect all positions that need analysis
+    temp_board = game.board()
+    for move_idx, move in enumerate(all_moves):
+        if temp_board.turn == user_color:
+            # Get a quick best move info for heuristics (minimal think time)
+            try:
+                best_move_info = engine.analyse(temp_board, chess.engine.Limit(time=0.01))
+            except Exception:
+                best_move_info = None
+            if best_move_info is not None:
+                if quick_heuristics_optimized(temp_board, move, best_move_info, user_color, state_manager, debug_mode, temp_board.move_stack[-1] if temp_board.move_stack else None):
+                    positions_to_analyze.append((temp_board.copy(), chess.engine.Limit(time=engine_think_time)))
+                    move_indices.append(move_idx)
+            else:
+                # Fallback: always analyze if we can't get best_move_info
+                positions_to_analyze.append((temp_board.copy(), chess.engine.Limit(time=engine_think_time)))
+                move_indices.append(move_idx)
+        move_data.append((temp_board.copy(), move))
+        temp_board.push(move)
+
+    # Batch analyze all positions (before and after move for each)
+    batch_requests = []
+    for idx in move_indices:
+        board_before, move = move_data[idx]
+        board_after = board_before.copy()
+        board_after.push(move)
+        batch_requests.append((board_before, chess.engine.Limit(time=engine_think_time)))
+        batch_requests.append((board_after, chess.engine.Limit(time=engine_think_time)))
+
+    batch_results = []
+    if batch_requests:
+        batch_results = analyze_positions_batch(engine, batch_requests, debug_mode)
+
+    # Second pass: process results
+    blunder_idx = 0
+    for i, idx in enumerate(move_indices):
+        board_before, move = move_data[idx]
+        board_after = board_before.copy()
+        board_after.push(move)
+        info_before_move = batch_results[blunder_idx * 2] if batch_results else None
+        info_after_move = batch_results[blunder_idx * 2 + 1] if batch_results else None
+        best_move_info = info_before_move  # For now, use info_before_move as best_move_info
+        actual_move_number = board_before.fullmove_number
+        blunder_info = categorize_blunder_optimized(
+            board_before, board_after, move, info_before_move, info_after_move,
+            best_move_info, state_manager, debug_mode, actual_move_number
+        )
+        if blunder_info:
+            blunder_key = f"{blunder_info['category']}_{actual_move_number}"
+            if not state_manager.has_reported(blunder_key):
+                blunders.append(blunder_info)
+                state_manager.mark_reported(blunder_key)
+        blunder_idx += 1
+
     return blunders
 
 def main():
@@ -1393,10 +1540,10 @@ def main():
     # Initialize engine pool for parallel processing
     engines = []
     try:
-        for i in range(args.threads):
-            engine = chess.engine.SimpleEngine.popen_uci(args.stockfish_path)
-            engines.append(engine)
-        print(f"[OK] Initialized {len(engines)} Stockfish engine(s)\n")
+        # We now initialize engines inside the threads, so this is just a check
+        engine = chess.engine.SimpleEngine.popen_uci(args.stockfish_path)
+        engine.quit()
+        print(f"[OK] Stockfish engine at '{args.stockfish_path}' is valid.\n")
     except Exception as e:
         print(f"[ERROR] Error initializing Stockfish: {e}")
         return
@@ -1418,14 +1565,14 @@ def main():
         
         # Process games (parallel if threads > 1)
         if args.threads > 1 and len(games) > 1:
-            # Parallel processing
+            # Parallel processing for multiple games
             with concurrent.futures.ThreadPoolExecutor(max_workers=args.threads) as executor:
                 futures = []
                 for i, game in enumerate(games):
-                    engine = engines[i % len(engines)]
-                    future = executor.submit(process_single_game, game, engine, args.username, 
+                    # Each game gets its own analysis process
+                    future = executor.submit(process_single_game, game, None, args.username, 
                                            args.blunder_threshold, args.engine_think_time, 
-                                           args.debug, i + 1)
+                                           args.debug, i + 1, args.stockfish_path, args.threads)
                     futures.append(future)
                 
                 # Collect results
@@ -1439,9 +1586,9 @@ def main():
         else:
             # Sequential processing
             for i, game in enumerate(games):
-                game_num, blunders = process_single_game(game, engines[0], args.username,
+                game_num, blunders = process_single_game(game, None, args.username,
                                                         args.blunder_threshold, args.engine_think_time,
-                                                        args.debug, i + 1)
+                                                        args.debug, i + 1, args.stockfish_path, 1)
                 if blunders:
                     total_blunders.extend(blunders)
                     for blunder in blunders:
@@ -1455,10 +1602,8 @@ def main():
         import traceback
         traceback.print_exc()
     finally:
-        # Clean up engines
-        for engine in engines:
-            engine.quit()
-        print("[OK] Engine(s) shutdown complete")
+        # Clean up engines is now handled in threads
+        print("[OK] Analysis complete.")
 
     # Summary
     print("\n=== Analysis Summary ===")
@@ -1486,7 +1631,7 @@ def main():
         print(f"Total moves analyzed: {total_moves}")
         print(f"Average time per move: {elapsed / total_moves:.3f} seconds")
 
-def process_single_game(game, engine, username, blunder_threshold, engine_think_time, debug_mode, game_num):
+def process_single_game(game, engine, username, blunder_threshold, engine_think_time, debug_mode, game_num, stockfish_path, threads):
     """Process a single game and return results"""
     white_player = game.headers.get("White", "Unknown")
     black_player = game.headers.get("Black", "Unknown")
@@ -1494,9 +1639,19 @@ def process_single_game(game, engine, username, blunder_threshold, engine_think_
     
     print(f"Analyzing Game #{game_num}:")
     print(f"  {white_player} vs {black_player} ({result})")
+
+    # Always create a new engine instance for each game if not provided
+    close_engine = False
+    if engine is None:
+        import chess.engine
+        engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
+        close_engine = True
     
     blunders = analyze_game_optimized(game, engine, username, blunder_threshold,
-                                    engine_think_time, debug_mode)
+                                    engine_think_time, debug_mode, stockfish_path, threads)
+    
+    if close_engine:
+        engine.quit()
     
     if blunders:
         print(f"\n  Found {len(blunders)} blunders:")
