@@ -2,7 +2,7 @@
 
 <div align="center">
 
-![MCB Logo](mcb-react/public/logo.png)
+<img src="mcb-react/public/logo.png" alt="MCB Logo" width="120" height="120">
 
 **Discover your chess weaknesses and improve your game**
 
@@ -22,13 +22,12 @@ MCB (Most Common Blunder) is a powerful chess analysis tool that helps players i
 ### 🔍 **Comprehensive Game Analysis**
 
 - **Chess.com Integration**: Automatically fetch and analyze games from your Chess.com profile
-- **Stockfish Engine**: Professional-grade analysis using the world's strongest chess engine
-- **Batch Processing**: Analyze multiple games simultaneously for comprehensive insights
+- **Stockfish 16 Engine**: Professional-grade analysis using the world's strongest chess engine
+- **Batch Processing**: Analyze multiple games simultaneously (up to 200 games)
 
 ### 📊 **Detailed Blunder Breakdown**
 
 - **Most Common Blunder**: Discover your #1 chess weakness
-- **Categorized Analysis**: Blunders sorted by tactical, positional, endgame, and opening categories
 - **Game-by-Game Breakdown**: See specific blunders in each analyzed game
 - **Move-by-Move Analysis**: Understand exactly where and why blunders occurred
 
@@ -36,7 +35,7 @@ MCB (Most Common Blunder) is a powerful chess analysis tool that helps players i
 
 - **Game Type Filtering**: Choose between blitz, rapid, bullet, or classical games
 - **Rating Filters**: Analyze rated or unrated games
-- **Result Filtering**: Focus on wins, losses, draws, or all games
+- **Result Filtering**: Focus on wins, losses, or both
 - **Adjustable Thresholds**: Customize what constitutes a "blunder" (centipawn loss)
 - **Analysis Depth**: Choose between fast analysis or deep evaluation
 
@@ -63,47 +62,17 @@ MCB (Most Common Blunder) is a powerful chess analysis tool that helps players i
 - **Context API** - State management
 - **CSS3** - Custom responsive styling
 
-## 🚀 Quick Start
+## 🚀 Try It Live
 
-### Prerequisites
+<div align="center">
 
-- Python 3.8+
-- Node.js 16+
-- A Chess.com account
+**Ready to discover your chess blunders?**
 
-### Installation
+[![Launch MCB](https://img.shields.io/badge/🎯_Launch_MCB-Live_App-blue?style=for-the-badge&logoColor=white)](https://your-app-url-here.com)
 
-1. **Clone the repository**
+_Just enter your Chess.com username and start analyzing!_
 
-   ```bash
-   git clone https://github.com/your-username/MCB--Most-Common-Blunder.git
-   cd MCB--Most-Common-Blunder
-   ```
-
-2. **Install Python dependencies**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Install Node.js dependencies**
-
-   ```bash
-   cd mcb-react
-   npm install
-   ```
-
-4. **Start the development servers**
-
-   ```bash
-   # In the mcb-react directory
-   npm run dev:full
-   ```
-
-   This will start both the React frontend and Flask backend simultaneously.
-
-5. **Open your browser**
-   Navigate to `http://localhost:5173` to use the application.
+</div>
 
 ## 📖 How to Use
 
@@ -112,14 +81,6 @@ MCB (Most Common Blunder) is a powerful chess analysis tool that helps players i
 3. **Start Analysis**: Click "Analyze Games" and wait for the real-time analysis to complete
 4. **Review Results**: Explore your most common blunder, detailed breakdowns, and game-specific insights
 5. **Improve Your Game**: Use the insights to focus your chess training on your biggest weaknesses
-
-## 🎯 Example Analysis Results
-
-- **Most Common Blunder**: "Hanging Pieces (32% of all blunders)"
-- **Blunder Categories**: Tactical oversights, positional mistakes, endgame errors
-- **Games Analyzed**: 50 recent blitz games
-- **Total Blunders Found**: 127 across all games
-- **Improvement Areas**: Pin tactics, back-rank threats, piece coordination
 
 ## 🏗️ Architecture
 
@@ -130,40 +91,16 @@ MCB uses a modular architecture designed for performance and scalability:
 - **`engines/stockfish_pool.py`** - Engine pool management for concurrent analysis
 - **`mcb-react/src`** - Modern React frontend with component-based architecture
 
-## 🤝 Contributing
-
-We welcome contributions! Whether it's bug fixes, new features, or improvements to the analysis algorithms, your help makes MCB better for everyone.
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
 ## 🙏 Acknowledgments
 
 - **Stockfish Team** - For the incredible chess engine that powers our analysis
 - **Chess.com** - For providing the public API that enables game fetching
 - **Python-Chess Library** - For excellent chess game processing capabilities
 
-## 🐛 Issues & Support
-
-If you encounter any issues or have questions:
-
-1. Check the [Issues](https://github.com/your-username/MCB--Most-Common-Blunder/issues) page
-2. Create a new issue with detailed information
-3. Include your system info and steps to reproduce
-
 ---
 
 <div align="center">
 
 **Improve your chess, one blunder at a time!** ♟️
-
-[Report Bug](https://github.com/your-username/MCB--Most-Common-Blunder/issues) • [Request Feature](https://github.com/your-username/MCB--Most-Common-Blunder/issues) • [Chess.com Profile](https://chess.com)
 
 </div>
