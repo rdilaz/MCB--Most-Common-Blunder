@@ -19,50 +19,54 @@ import platform
 import shutil
 
 def get_stockfish_path():
-    """Get Stockfish path, trying the Python package first"""
+    """Get Stockfish path with better debugging and dual Windows/Linux support"""
     # First, try environment variable
     if 'STOCKFISH_PATH' in os.environ:
-        return os.environ['STOCKFISH_PATH']
+        path = os.environ['STOCKFISH_PATH']
+        print(f"🔍 Using Stockfish from environment: {path}")
+        return path
     
-    # Try our downloaded Linux binary
-    linux_binary = os.path.join(os.path.dirname(__file__), "stockfish_linux")
-    if os.path.exists(linux_binary):
-        return linux_binary
-    
-    # Try to find stockfish in system PATH
-    stockfish_cmd = shutil.which('stockfish')
-    if stockfish_cmd:
-        return stockfish_cmd
-    
-    # Platform-specific defaults
+    # Platform-specific logic
     if platform.system() == 'Windows':
-        # Local development on Windows
-        local_path = os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe")
-        if os.path.exists(local_path):
-            return local_path
+        # Local Windows development
+        windows_paths = [
+            os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe"),
+            "stockfish.exe",
+            "stockfish"
+        ]
+        
+        for path in windows_paths:
+            if os.path.exists(path):
+                print(f"🔍 Using Windows Stockfish: {path}")
+                return path
     
-    # Try system stockfish first (might be pre-installed)
-    system_paths = [
+    # Linux/production paths
+    linux_paths = [
+        # Our downloaded binary
+        os.path.join(os.path.dirname(__file__), "stockfish_linux"),
+        # System installations
         '/usr/bin/stockfish',
         '/usr/local/bin/stockfish', 
-        '/usr/games/stockfish',
-        'stockfish'  # Try in PATH
+        '/usr/games/stockfish'
     ]
     
-    for path in system_paths:
-        try:
-            if path == 'stockfish':
-                # Test if stockfish command works
-                import subprocess
-                result = subprocess.run(['which', 'stockfish'], capture_output=True, text=True)
-                if result.returncode == 0:
-                    return 'stockfish'
-            elif os.path.exists(path):
-                return path
-        except:
-            continue
+    for path in linux_paths:
+        if os.path.exists(path):
+            print(f"🔍 Using Linux Stockfish: {path}")
+            return path
     
-    return "stockfish"  # Final fallback
+    # Try system PATH
+    try:
+        stockfish_cmd = shutil.which('stockfish')
+        if stockfish_cmd:
+            print(f"🔍 Using Stockfish from PATH: {stockfish_cmd}")
+            return stockfish_cmd
+    except:
+        pass
+    
+    # Final fallback
+    print("⚠️ No Stockfish found, using fallback: stockfish")
+    return "stockfish"
 
 try:
     STOCKFISH_PATH = get_stockfish_path()

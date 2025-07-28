@@ -76,64 +76,67 @@ export const useAnalysis = () => {
     }
   }, [analysis.isAnalyzing, validateSettings, generateSessionId, updateAnalysis, updateUI, getAnalysisSettings]);
 
-  // Start progress tracking via Server-Sent Events (mirrors original)
-  const startProgressTracking = useCallback((sessionId, reconnectAttempt = 0) => {
-    // Limit reconnection attempts
-    if (reconnectAttempt > 3) {
-      console.log('Max reconnection attempts reached, giving up');
-      updateAnalysis({ isAnalyzing: false });
-      updateUI(prevState => ({
-        ...prevState,
-        progressLogs: [...(prevState.progressLogs || []), {
-          message: '❌ Connection failed after multiple attempts',
-          timestamp: new Date().toLocaleTimeString()
-        }]
-      }));
-      return;
-    }
+  // Start progress tracking via simple polling (much more reliable than EventSource)
+  const startProgressTracking = useCallback((sessionId) => {
+    console.log('Starting progress tracking with polling');
     
-    // Close existing connection
+    // Close any existing EventSource
     if (connection.eventSource) {
       connection.eventSource.close();
     }
     
-    console.log(`Starting progress tracking (attempt ${reconnectAttempt + 1})`);
-    const eventSource = new EventSource(`/api/progress/${sessionId}`);
-    
-    eventSource.onmessage = (event) => {
+    // Use polling instead of EventSource
+    const pollProgress = async () => {
       try {
-        const data = JSON.parse(event.data);
-        handleProgressUpdate(data);
-      } catch (e) {
-        console.error('Failed to parse progress data:', e);
+        const response = await fetch(`/api/status/${sessionId}`);
+        if (!response.ok) throw new Error('Status check failed');
+        
+                 const data = await response.json();
+         console.log('Progress poll:', data);
+         
+         // Handle progress update inline
+         if (data.percentage !== undefined) {
+           updateUI({ currentProgress: data.percentage });
+         }
+         
+         if (data.message) {
+           updateUI(prevState => ({
+             ...prevState,
+             progressLogs: [...(prevState.progressLogs || []), {
+               message: data.message,
+               timestamp: new Date().toLocaleTimeString(),
+               rawTimestamp: Date.now()
+             }]
+           }));
+         }
+         
+         // Handle completion
+         if (data.status === 'completed' && data.results) {
+           updateAnalysis({ isAnalyzing: false, results: data.results });
+           updateUI({ resultsVisible: true, progressVisible: false });
+         } else if (data.status === 'error') {
+           updateAnalysis({ isAnalyzing: false });
+           updateUI({ progressVisible: false });
+           alert(`Analysis failed: ${data.error || 'Unknown error'}`);
+         }
+        
+        // Continue polling if analysis is still running
+        if (analysis.isAnalyzing && data.status !== 'completed' && data.status !== 'error') {
+          setTimeout(pollProgress, 2000); // Poll every 2 seconds
+        }
+      } catch (error) {
+        console.error('Progress polling error:', error);
+        if (analysis.isAnalyzing) {
+          setTimeout(pollProgress, 3000); // Retry in 3 seconds
+        }
       }
     };
     
-    eventSource.onopen = () => {
-      console.log('EventSource connection opened');
-      updateConnection({ isConnected: true });
-    };
+    // Start polling
+    pollProgress();
     
-    eventSource.onerror = (event) => {
-      console.error('EventSource error:', event);
-      updateConnection({ isConnected: false });
-      
-      if (eventSource.readyState === EventSource.CLOSED && analysis.isAnalyzing) {
-        console.log(`Connection lost, attempting reconnect ${reconnectAttempt + 2}/4 in 3 seconds...`);
-        setTimeout(() => {
-          if (analysis.sessionId && analysis.isAnalyzing) {
-            console.log('Reconnecting to progress stream...');
-            startProgressTracking(sessionId, reconnectAttempt + 1);
-          }
-        }, 3000);
-      }
-    };
-    
-    updateConnection({
-      eventSource: eventSource,
-      isConnected: true
-    });
-  }, [connection.eventSource, updateConnection, analysis.sessionId, analysis.isAnalyzing, updateAnalysis, updateUI]);
+    updateConnection({ isConnected: true });
+  }, [updateConnection, analysis.isAnalyzing, updateUI, updateAnalysis]);
 
   // Handle progress updates (mirrors original)
   const handleProgressUpdate = useCallback((data) => {

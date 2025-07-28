@@ -71,8 +71,11 @@ def register_routes(app: Flask):
     
     @app.route("/debug")
     def debug_files():
-        """Debug route to check file structure."""
+        """Debug route to check file structure and Stockfish."""
         import os
+        import subprocess
+        from config import STOCKFISH_PATH
+        
         try:
             cwd = os.getcwd()
             files = []
@@ -81,12 +84,35 @@ def register_routes(app: Flask):
             files.append(f"Current working directory: {cwd}")
             files.append(f"Files in root: {os.listdir('.')}")
             
-            # Check if mcb-react exists
+            # Check Stockfish
+            files.append("<br><b>STOCKFISH DEBUG:</b>")
+            files.append(f"Configured Stockfish path: {STOCKFISH_PATH}")
+            files.append(f"Stockfish file exists: {os.path.exists(STOCKFISH_PATH)}")
+            
+            if os.path.exists(STOCKFISH_PATH):
+                try:
+                    # Test if Stockfish works
+                    result = subprocess.run([STOCKFISH_PATH, '--help'], 
+                                         capture_output=True, text=True, timeout=5)
+                    files.append(f"Stockfish test result: SUCCESS (return code: {result.returncode})")
+                    files.append(f"Stockfish output: {result.stdout[:200]}...")
+                except Exception as e:
+                    files.append(f"Stockfish test FAILED: {e}")
+            
+            # Check stockfish_linux specifically
+            linux_path = os.path.join(cwd, "stockfish_linux")
+            files.append(f"stockfish_linux exists: {os.path.exists(linux_path)}")
+            if os.path.exists(linux_path):
+                import stat
+                mode = os.stat(linux_path).st_mode
+                files.append(f"stockfish_linux is executable: {bool(mode & stat.S_IXUSR)}")
+            
+            # Check React build
+            files.append("<br><b>REACT BUILD DEBUG:</b>")
             if os.path.exists('mcb-react'):
                 files.append(f"mcb-react directory exists")
                 files.append(f"Files in mcb-react: {os.listdir('mcb-react')}")
                 
-                # Check if dist exists
                 if os.path.exists('mcb-react/dist'):
                     files.append(f"dist directory exists")
                     files.append(f"Files in mcb-react/dist: {os.listdir('mcb-react/dist')}")
