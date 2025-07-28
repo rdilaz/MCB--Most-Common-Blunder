@@ -24,11 +24,12 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Create the Flask app at module level for gunicorn
+app = create_app()
+
 def main():
     """Main entry point for the application with production features."""
     try:
-        # Create the application using the production-ready factory
-        app = create_app()
         
         # Log startup message
         logger.info("=" * 60)
