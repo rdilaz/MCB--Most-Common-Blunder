@@ -469,7 +469,7 @@ def register_routes(app: Flask):
                         if session_id not in progress_queues:
                             break
                         
-                        update = progress_queues[session_id].get(timeout=30)
+                        update = progress_queues[session_id].get(timeout=10)
                         
                         # Ensure all data is JSON serializable
                         try:

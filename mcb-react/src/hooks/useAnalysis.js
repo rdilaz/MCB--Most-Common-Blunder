@@ -77,12 +77,27 @@ export const useAnalysis = () => {
   }, [analysis.isAnalyzing, validateSettings, generateSessionId, updateAnalysis, updateUI, getAnalysisSettings]);
 
   // Start progress tracking via Server-Sent Events (mirrors original)
-  const startProgressTracking = useCallback((sessionId) => {
+  const startProgressTracking = useCallback((sessionId, reconnectAttempt = 0) => {
+    // Limit reconnection attempts
+    if (reconnectAttempt > 3) {
+      console.log('Max reconnection attempts reached, giving up');
+      updateAnalysis({ isAnalyzing: false });
+      updateUI(prevState => ({
+        ...prevState,
+        progressLogs: [...(prevState.progressLogs || []), {
+          message: '❌ Connection failed after multiple attempts',
+          timestamp: new Date().toLocaleTimeString()
+        }]
+      }));
+      return;
+    }
+    
     // Close existing connection
     if (connection.eventSource) {
       connection.eventSource.close();
     }
     
+    console.log(`Starting progress tracking (attempt ${reconnectAttempt + 1})`);
     const eventSource = new EventSource(`/api/progress/${sessionId}`);
     
     eventSource.onmessage = (event) => {
@@ -94,10 +109,23 @@ export const useAnalysis = () => {
       }
     };
     
+    eventSource.onopen = () => {
+      console.log('EventSource connection opened');
+      updateConnection({ isConnected: true });
+    };
+    
     eventSource.onerror = (event) => {
       console.error('EventSource error:', event);
-      if (eventSource.readyState === EventSource.CLOSED) {
-        console.log('EventSource connection closed');
+      updateConnection({ isConnected: false });
+      
+      if (eventSource.readyState === EventSource.CLOSED && analysis.isAnalyzing) {
+        console.log(`Connection lost, attempting reconnect ${reconnectAttempt + 2}/4 in 3 seconds...`);
+        setTimeout(() => {
+          if (analysis.sessionId && analysis.isAnalyzing) {
+            console.log('Reconnecting to progress stream...');
+            startProgressTracking(sessionId, reconnectAttempt + 1);
+          }
+        }, 3000);
       }
     };
     
@@ -105,7 +133,7 @@ export const useAnalysis = () => {
       eventSource: eventSource,
       isConnected: true
     });
-  }, [connection.eventSource, updateConnection]);
+  }, [connection.eventSource, updateConnection, analysis.sessionId, analysis.isAnalyzing, updateAnalysis, updateUI]);
 
   // Handle progress updates (mirrors original)
   const handleProgressUpdate = useCallback((data) => {
