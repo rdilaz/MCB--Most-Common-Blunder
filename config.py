@@ -14,7 +14,52 @@ load_dotenv()
 # ========================================
 
 # Engine Configuration
-STOCKFISH_PATH = os.environ.get('STOCKFISH_PATH', os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe"))
+# Auto-detect Stockfish path based on environment
+import platform
+import shutil
+
+def get_stockfish_path():
+    """Get Stockfish path, trying the Python package first"""
+    # First, try environment variable
+    if 'STOCKFISH_PATH' in os.environ:
+        return os.environ['STOCKFISH_PATH']
+    
+    # Try our downloaded Linux binary
+    linux_binary = os.path.join(os.path.dirname(__file__), "stockfish_linux")
+    if os.path.exists(linux_binary):
+        return linux_binary
+    
+    # Try to find stockfish in system PATH
+    stockfish_cmd = shutil.which('stockfish')
+    if stockfish_cmd:
+        return stockfish_cmd
+    
+    # Platform-specific defaults
+    if platform.system() == 'Windows':
+        # Local development on Windows
+        local_path = os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe")
+        if os.path.exists(local_path):
+            return local_path
+    
+    # Last resort - try common Linux locations
+    possible_paths = [
+        '/usr/bin/stockfish',
+        '/usr/local/bin/stockfish',
+        'stockfish'  # Hope it's in PATH
+    ]
+    
+    for path in possible_paths:
+        if path == 'stockfish' or os.path.exists(path):
+            return path
+    
+    return "stockfish"  # Fallback - will fail gracefully in engine code
+
+try:
+    STOCKFISH_PATH = get_stockfish_path()
+    print(f"🔍 Using Stockfish at: {STOCKFISH_PATH}")
+except Exception as e:
+    print(f"⚠️  Warning: {e}")
+    STOCKFISH_PATH = "stockfish"  # Fallback
 BLUNDER_THRESHOLD = 10
 ENGINE_THINK_TIME = 0.08  # Changed to balanced for better accuracy
 

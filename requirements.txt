@@ -8,4 +8,5 @@ python-chess==1.999
 redis==4.5.1
 httpx==0.25.2
 psutil==5.9.6
-gunicorn==21.2.0 
+gunicorn==21.2.0
+ 
