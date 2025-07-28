@@ -41,18 +41,28 @@ def get_stockfish_path():
         if os.path.exists(local_path):
             return local_path
     
-    # Last resort - try common Linux locations
-    possible_paths = [
+    # Try system stockfish first (might be pre-installed)
+    system_paths = [
         '/usr/bin/stockfish',
-        '/usr/local/bin/stockfish',
-        'stockfish'  # Hope it's in PATH
+        '/usr/local/bin/stockfish', 
+        '/usr/games/stockfish',
+        'stockfish'  # Try in PATH
     ]
     
-    for path in possible_paths:
-        if path == 'stockfish' or os.path.exists(path):
-            return path
+    for path in system_paths:
+        try:
+            if path == 'stockfish':
+                # Test if stockfish command works
+                import subprocess
+                result = subprocess.run(['which', 'stockfish'], capture_output=True, text=True)
+                if result.returncode == 0:
+                    return 'stockfish'
+            elif os.path.exists(path):
+                return path
+        except:
+            continue
     
-    return "stockfish"  # Fallback - will fail gracefully in engine code
+    return "stockfish"  # Final fallback
 
 try:
     STOCKFISH_PATH = get_stockfish_path()
