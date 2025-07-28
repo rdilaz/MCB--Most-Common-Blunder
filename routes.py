@@ -69,13 +69,51 @@ def register_routes(app: Flask):
         app (Flask): Flask application instance
     """
     
+    @app.route("/debug")
+    def debug_files():
+        """Debug route to check file structure."""
+        import os
+        try:
+            cwd = os.getcwd()
+            files = []
+            
+            # Check current directory
+            files.append(f"Current working directory: {cwd}")
+            files.append(f"Files in root: {os.listdir('.')}")
+            
+            # Check if mcb-react exists
+            if os.path.exists('mcb-react'):
+                files.append(f"mcb-react directory exists")
+                files.append(f"Files in mcb-react: {os.listdir('mcb-react')}")
+                
+                # Check if dist exists
+                if os.path.exists('mcb-react/dist'):
+                    files.append(f"dist directory exists")
+                    files.append(f"Files in mcb-react/dist: {os.listdir('mcb-react/dist')}")
+                else:
+                    files.append("dist directory does NOT exist")
+            else:
+                files.append("mcb-react directory does NOT exist")
+                
+            return "<br>".join(files)
+        except Exception as e:
+            return f"Debug error: {str(e)}"
+
     @app.route("/")
     def home():
         """Serve the React app."""
+        import os
         try:
+            # Check if file exists first
+            index_path = os.path.join('mcb-react', 'dist', 'index.html')
+            if not os.path.exists(index_path):
+                return f"File not found: {index_path}. Current dir: {os.getcwd()}", 404
+            
             return send_from_directory('mcb-react/dist', 'index.html')
-        except FileNotFoundError:
-            return "Application not found - React app not built", 404
+        except FileNotFoundError as e:
+            return f"FileNotFoundError: {str(e)}", 404
+        except Exception as e:
+            return f"Error: {str(e)}", 500
     
     @app.route("/assets/<path:filename>")
     def serve_react_assets(filename):
