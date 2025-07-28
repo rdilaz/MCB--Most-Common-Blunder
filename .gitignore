@@ -55,6 +55,7 @@ analysis_cache/
 *.swp
 *.swo
 *~
+.claude
 
 # OS
 .DS_Store
@@ -91,3 +92,5 @@ stockfish/stockfish
 # Temporary analysis files
 temp_games/
 analysis_temp/ 
+
+claude
