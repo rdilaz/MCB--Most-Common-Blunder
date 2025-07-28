@@ -69,93 +69,30 @@ def register_routes(app: Flask):
         app (Flask): Flask application instance
     """
     
-    @app.route("/debug")
-    def debug_files():
-        """Debug route to check file structure and Stockfish."""
-        import os
-        import subprocess
-        from config import STOCKFISH_PATH
-        
-        try:
-            cwd = os.getcwd()
-            files = []
-            
-            # Check current directory
-            files.append(f"Current working directory: {cwd}")
-            files.append(f"Files in root: {os.listdir('.')}")
-            
-            # Check Stockfish
-            files.append("<br><b>STOCKFISH DEBUG:</b>")
-            files.append(f"Configured Stockfish path: {STOCKFISH_PATH}")
-            files.append(f"Stockfish file exists: {os.path.exists(STOCKFISH_PATH)}")
-            
-            if os.path.exists(STOCKFISH_PATH):
-                try:
-                    # Test if Stockfish works
-                    result = subprocess.run([STOCKFISH_PATH, '--help'], 
-                                         capture_output=True, text=True, timeout=5)
-                    files.append(f"Stockfish test result: SUCCESS (return code: {result.returncode})")
-                    files.append(f"Stockfish output: {result.stdout[:200]}...")
-                except Exception as e:
-                    files.append(f"Stockfish test FAILED: {e}")
-            
-            # Check stockfish_linux specifically
-            linux_path = os.path.join(cwd, "stockfish_linux")
-            files.append(f"stockfish_linux exists: {os.path.exists(linux_path)}")
-            if os.path.exists(linux_path):
-                import stat
-                mode = os.stat(linux_path).st_mode
-                files.append(f"stockfish_linux is executable: {bool(mode & stat.S_IXUSR)}")
-            
-            # Check React build
-            files.append("<br><b>REACT BUILD DEBUG:</b>")
-            if os.path.exists('mcb-react'):
-                files.append(f"mcb-react directory exists")
-                files.append(f"Files in mcb-react: {os.listdir('mcb-react')}")
-                
-                if os.path.exists('mcb-react/dist'):
-                    files.append(f"dist directory exists")
-                    files.append(f"Files in mcb-react/dist: {os.listdir('mcb-react/dist')}")
-                else:
-                    files.append("dist directory does NOT exist")
-            else:
-                files.append("mcb-react directory does NOT exist")
-                
-            return "<br>".join(files)
-        except Exception as e:
-            return f"Debug error: {str(e)}"
-
     @app.route("/")
     def home():
-        """Serve the React app."""
-        import os
+        """Serve the main HTML page."""
         try:
-            # Check if file exists first
-            index_path = os.path.join('mcb-react', 'dist', 'index.html')
-            if not os.path.exists(index_path):
-                return f"File not found: {index_path}. Current dir: {os.getcwd()}", 404
-            
-            return send_from_directory('mcb-react/dist', 'index.html')
-        except FileNotFoundError as e:
-            return f"FileNotFoundError: {str(e)}", 404
-        except Exception as e:
-            return f"Error: {str(e)}", 500
-    
-    @app.route("/assets/<path:filename>")
-    def serve_react_assets(filename):
-        """Serve React build assets (CSS, JS, etc.)."""
-        return send_from_directory('mcb-react/dist/assets', filename)
-    
-    @app.route("/<path:path>")
-    def serve_react_routes(path):
-        """Serve React app for client-side routing."""
-        try:
-            return send_from_directory('mcb-react/dist', path)
+            with open('index.html', 'r', encoding='utf-8') as f:
+                html_content = f.read()
+            return html_content
         except FileNotFoundError:
-            # For React Router - serve index.html for any unmatched routes
-            return send_from_directory('mcb-react/dist', 'index.html')
+            return "Application not found", 404
     
-
+    @app.route("/styles.css")
+    def serve_css():
+        """Serve the CSS file."""
+        return send_from_directory('.', 'styles.css')
+    
+    @app.route("/main.js")
+    def serve_js():
+        """Serve the JavaScript file."""
+        return send_from_directory('.', 'main.js')
+    
+    @app.route("/js/<filename>")
+    def serve_js_modules(filename):
+        """Serve JavaScript module files from js/ directory."""
+        return send_from_directory('js', filename)
     
     @app.route("/api/analyze", methods=['POST'])
     @app.limiter.limit(RATE_LIMITS['analysis'])  # Rate limit analysis requests
@@ -495,7 +432,7 @@ def register_routes(app: Flask):
                         if session_id not in progress_queues:
                             break
                         
-                        update = progress_queues[session_id].get(timeout=10)
+                        update = progress_queues[session_id].get(timeout=30)
                         
                         # Ensure all data is JSON serializable
                         try:

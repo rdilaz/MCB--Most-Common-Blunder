@@ -76,67 +76,36 @@ export const useAnalysis = () => {
     }
   }, [analysis.isAnalyzing, validateSettings, generateSessionId, updateAnalysis, updateUI, getAnalysisSettings]);
 
-  // Start progress tracking via simple polling (much more reliable than EventSource)
+  // Start progress tracking via Server-Sent Events (mirrors original)
   const startProgressTracking = useCallback((sessionId) => {
-    console.log('Starting progress tracking with polling');
-    
-    // Close any existing EventSource
+    // Close existing connection
     if (connection.eventSource) {
       connection.eventSource.close();
     }
     
-    // Use polling instead of EventSource
-    const pollProgress = async () => {
+    const eventSource = new EventSource(`/api/progress/${sessionId}`);
+    
+    eventSource.onmessage = (event) => {
       try {
-        const response = await fetch(`/api/status/${sessionId}`);
-        if (!response.ok) throw new Error('Status check failed');
-        
-                 const data = await response.json();
-         console.log('Progress poll:', data);
-         
-         // Handle progress update inline
-         if (data.percentage !== undefined) {
-           updateUI({ currentProgress: data.percentage });
-         }
-         
-         if (data.message) {
-           updateUI(prevState => ({
-             ...prevState,
-             progressLogs: [...(prevState.progressLogs || []), {
-               message: data.message,
-               timestamp: new Date().toLocaleTimeString(),
-               rawTimestamp: Date.now()
-             }]
-           }));
-         }
-         
-         // Handle completion
-         if (data.status === 'completed' && data.results) {
-           updateAnalysis({ isAnalyzing: false, results: data.results });
-           updateUI({ resultsVisible: true, progressVisible: false });
-         } else if (data.status === 'error') {
-           updateAnalysis({ isAnalyzing: false });
-           updateUI({ progressVisible: false });
-           alert(`Analysis failed: ${data.error || 'Unknown error'}`);
-         }
-        
-        // Continue polling if analysis is still running
-        if (analysis.isAnalyzing && data.status !== 'completed' && data.status !== 'error') {
-          setTimeout(pollProgress, 2000); // Poll every 2 seconds
-        }
-      } catch (error) {
-        console.error('Progress polling error:', error);
-        if (analysis.isAnalyzing) {
-          setTimeout(pollProgress, 3000); // Retry in 3 seconds
-        }
+        const data = JSON.parse(event.data);
+        handleProgressUpdate(data);
+      } catch (e) {
+        console.error('Failed to parse progress data:', e);
       }
     };
     
-    // Start polling
-    pollProgress();
+    eventSource.onerror = (event) => {
+      console.error('EventSource error:', event);
+      if (eventSource.readyState === EventSource.CLOSED) {
+        console.log('EventSource connection closed');
+      }
+    };
     
-    updateConnection({ isConnected: true });
-  }, [updateConnection, analysis.isAnalyzing, updateUI, updateAnalysis]);
+    updateConnection({
+      eventSource: eventSource,
+      isConnected: true
+    });
+  }, [connection.eventSource, updateConnection]);
 
   // Handle progress updates (mirrors original)
   const handleProgressUpdate = useCallback((data) => {

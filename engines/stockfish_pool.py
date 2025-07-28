@@ -30,18 +30,12 @@ class StockfishPool:
                 if self.total_engines < self.pool_size:
                     # Create a new engine
                     try:
-                        logger.info(f"Attempting to create Stockfish engine with path: {self.stockfish_path}")
                         engine = chess.engine.SimpleEngine.popen_uci(self.stockfish_path)
                         self.total_engines += 1
-                        logger.info(f"✅ Created Stockfish engine {self.total_engines}/{self.pool_size}")
+                        logger.info(f"Created Stockfish engine {self.total_engines}/{self.pool_size}")
                         return engine
-                    except FileNotFoundError as e:
-                        logger.error(f"❌ Stockfish binary not found at: {self.stockfish_path}")
-                        logger.error(f"❌ FileNotFoundError: {e}")
-                        return None
                     except Exception as e:
-                        logger.error(f"❌ Failed to create Stockfish engine: {e}")
-                        logger.error(f"❌ Engine path was: {self.stockfish_path}")
+                        logger.error(f"Failed to create Stockfish engine: {e}")
                         return None
                 else:
                     # Pool is full, wait for an engine to become available

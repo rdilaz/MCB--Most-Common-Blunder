@@ -14,66 +14,7 @@ load_dotenv()
 # ========================================
 
 # Engine Configuration
-# Auto-detect Stockfish path based on environment
-import platform
-import shutil
-
-def get_stockfish_path():
-    """Get Stockfish path with better debugging and dual Windows/Linux support"""
-    # First, try environment variable
-    if 'STOCKFISH_PATH' in os.environ:
-        path = os.environ['STOCKFISH_PATH']
-        print(f"🔍 Using Stockfish from environment: {path}")
-        return path
-    
-    # Platform-specific logic
-    if platform.system() == 'Windows':
-        # Local Windows development
-        windows_paths = [
-            os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe"),
-            "stockfish.exe",
-            "stockfish"
-        ]
-        
-        for path in windows_paths:
-            if os.path.exists(path):
-                print(f"🔍 Using Windows Stockfish: {path}")
-                return path
-    
-    # Linux/production paths
-    linux_paths = [
-        # Our downloaded binary
-        os.path.join(os.path.dirname(__file__), "stockfish_linux"),
-        # System installations
-        '/usr/bin/stockfish',
-        '/usr/local/bin/stockfish', 
-        '/usr/games/stockfish'
-    ]
-    
-    for path in linux_paths:
-        if os.path.exists(path):
-            print(f"🔍 Using Linux Stockfish: {path}")
-            return path
-    
-    # Try system PATH
-    try:
-        stockfish_cmd = shutil.which('stockfish')
-        if stockfish_cmd:
-            print(f"🔍 Using Stockfish from PATH: {stockfish_cmd}")
-            return stockfish_cmd
-    except:
-        pass
-    
-    # Final fallback
-    print("⚠️ No Stockfish found, using fallback: stockfish")
-    return "stockfish"
-
-try:
-    STOCKFISH_PATH = get_stockfish_path()
-    print(f"🔍 Using Stockfish at: {STOCKFISH_PATH}")
-except Exception as e:
-    print(f"⚠️  Warning: {e}")
-    STOCKFISH_PATH = "stockfish"  # Fallback
+STOCKFISH_PATH = os.environ.get('STOCKFISH_PATH', os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe"))
 BLUNDER_THRESHOLD = 10
 ENGINE_THINK_TIME = 0.08  # Changed to balanced for better accuracy
 
