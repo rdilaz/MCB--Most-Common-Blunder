@@ -23,7 +23,7 @@ from config import (
     ANALYSIS_DEPTH_MAPPING, BLUNDER_GENERAL_DESCRIPTIONS,
     BLUNDER_EDUCATIONAL_DESCRIPTIONS, BASE_IMPACT_VALUES,
     CATEGORY_WEIGHTS, ESTIMATED_MOVES_PER_GAME, OPTIMIZATION_DESCRIPTIONS,
-    ENGINE_POOL_SIZE, PARALLEL_GAME_WORKERS, ENABLE_PARALLEL_ANALYSIS
+    ENGINE_POOL_SIZE, PARALLEL_GAME_WORKERS, PARALLEL_PROCESSING_ENABLED
 )
 from engines.stockfish_pool import get_engine_pool
 from utils import (
@@ -73,7 +73,6 @@ class AnalysisService:
         Run game analysis with parallel processing for optimal performance.
         Automatically chooses between sequential and parallel processing based on game count.
         """
-        from config import PARALLEL_PROCESSING_ENABLED
         
         try:
             # Create temporary PGN file

@@ -9,6 +9,10 @@ from typing import Dict, List, Set, Optional, Tuple
 from dataclasses import dataclass
 from functools import lru_cache
 import concurrent.futures
+from config import (ENABLE_BATCH_ENGINE_ANALYSIS, BATCH_ANALYSIS_SIZE, 
+                    SKIP_FORCED_MOVES, SKIP_BOOK_MOVES, SKIP_OBVIOUS_RECAPTURES, 
+                    SKIP_TABLEBASE_POSITIONS, TABLEBASE_PIECE_LIMIT,
+                    MIN_EVAL_DROP_FOR_ANALYSIS, EXPENSIVE_CHECK_THRESHOLD)
 
 # ---- Opening Book (Placeholder for Optimization) ----
 # To enable, download a polyglot book (e.g., gm2001.bin) and place it in the project root.
@@ -23,15 +27,37 @@ try:
 except (ImportError, Exception):
     OPENING_BOOK = None
 
+# Common opening moves in UCI format for the first 10 moves (Step 1.2 Enhancement)
+HARDCODED_OPENING_BOOK = {
+    # Italian Game, Ruy Lopez, Queen's Gambit, etc.
+    1: ['e2e4', 'd2d4', 'g1f3', 'c2c4', 'b1c3', 'f2f4'],
+    2: ['e7e5', 'd7d5', 'g8f6', 'c7c5', 'e7e6', 'c7c6', 'g8f6', 'b8c6'],
+    3: ['g1f3', 'b1c3', 'f1c4', 'f1b5', 'd2d3', 'c2c3', 'f2f4', 'h2h3'],
+    4: ['b8c6', 'g8f6', 'f8e7', 'f8c5', 'd7d6', 'a7a6', 'h7h6', 'c8g4'],
+    5: ['d2d3', 'e1g1', 'f1e2', 'c2c3', 'h2h3', 'd2d4', 'a2a3', 'b2b3'],
+    6: ['e1g1', 'd7d6', 'c8e6', 'f8e7', 'a7a6', 'h7h6', 'b7b5', 'c7c6'],
+    7: ['e1g1', 'f1e1', 'c2c3', 'd2d4', 'a2a4', 'h2h3', 'b2b3'],
+    8: ['f8e7', 'e1g1', 'c8e6', 'h7h6', 'a7a5', 'b7b6', 'd7d6'],
+    9: ['f1e1', 'c1e3', 'h2h3', 'd2d4', 'a2a4', 'b2b3'],
+    10: ['f8d8', 'e1g1', 'c8d7', 'h7h6', 'a7a6', 'b7b6']
+}
+
 def is_book_move(board: chess.Board, move: chess.Move) -> bool:
-    """Checks if a move is in the loaded opening book."""
+    """Checks if a move is in the loaded opening book or hardcoded opening moves."""
+    # First try polyglot book if available
     if OPENING_BOOK:
         try:
-            # The find() method on a reader looks for an entry for the given board AND move
             return OPENING_BOOK.find(board, move) is not None
-        except (IndexError, RuntimeError): # Readers can throw errors on some positions
-            return False
-    return False
+        except (IndexError, RuntimeError):
+            pass
+    
+    # Fallback to hardcoded opening book (Step 1.2 Enhancement)
+    move_num = board.fullmove_number
+    if move_num > 10:
+        return False
+    
+    move_uci = move.uci()
+    return move_uci in HARDCODED_OPENING_BOOK.get(move_num, [])
 
 # ---- Constants ----
 STOCKFISH_PATH_DEFAULT = os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe")
@@ -1175,69 +1201,83 @@ def check_for_hanging_piece_optimized(board_before, move_played, board_after, tu
     return None
 
 def quick_heuristics_optimized(board_before, move_played, best_move_info, turn_color, state_manager, debug_mode, opponent_last_move):
-    """Ultra-fast heuristics using minimal computation based on optimization plan."""
-    # 1. Forced moves (very cheap check, do first)
-    if board_before.legal_moves.count() == 1:
-        if debug_mode:
-            print(f"[DEBUG] Skipping analysis: forced move.")
-        return False
-
-    # 2. Book moves (in opening)
-    if board_before.fullmove_number <= 10 and is_book_move(board_before, move_played):
-        if debug_mode:
-            print(f"[DEBUG] Skipping analysis: book move.")
-        return False
-
-    # 3. Obvious recaptures
-    if is_obvious_recapture(board_before, move_played, opponent_last_move):
-        if debug_mode:
-            print(f"[DEBUG] Skipping analysis: obvious recapture.")
-        return False
-        
-    # 4. Simple endgames (more aggressive than before)
-    if len(board_before.piece_map()) < 7: # As per plan
-        eval_cp = best_move_info["score"].pov(turn_color).score(mate_score=10000)
-        # Skip if evaluation is quiet (e.g., within a pawn's value)
-        if eval_cp is not None and abs(eval_cp) < 100:
+    """Ultra-fast heuristics using minimal computation - ENHANCED VERSION (Step 1.2)"""
+    
+    # NEW: Skip forced moves
+    if SKIP_FORCED_MOVES:
+        legal_moves = list(board_before.legal_moves)
+        if len(legal_moves) == 1:
             if debug_mode:
-                print(f"[DEBUG] Skipping analysis: quiet endgame position with < 7 pieces.")
+                print(f"[DEBUG] Skipping forced move (only legal move)")
             return False
-
-    # --- Existing Heuristics (still valuable) ---
-
-    # Always analyze if the engine's best move is a capture or leads to mate
-    if best_move_info["score"].pov(turn_color).is_mate():
+    
+    # NEW: Skip book moves in opening
+    if SKIP_BOOK_MOVES and board_before.fullmove_number <= 10 and is_book_move(board_before, move_played):
+        if debug_mode:
+            print(f"[DEBUG] Skipping book move in opening")
+        return False
+    
+    # NEW: Skip obvious recaptures
+    if SKIP_OBVIOUS_RECAPTURES and is_obvious_recapture(board_before, move_played, opponent_last_move):
+        if debug_mode:
+            print(f"[DEBUG] Skipping obvious recapture")
+        return False
+    
+    # NEW: Skip simple endgames (use tablebase or skip)
+    if SKIP_TABLEBASE_POSITIONS:
+        piece_count = len(board_before.piece_map())
+        if piece_count <= TABLEBASE_PIECE_LIMIT:
+            if debug_mode:
+                print(f"[DEBUG] Skipping tablebase position ({piece_count} pieces)")
+            return False
+    
+    # EXISTING: Skip quiet endgame positions
+    if board_before.fullmove_number > 30 and piece_count < 10:
+        if best_move_info:
+            eval_cp = best_move_info["score"].pov(turn_color).score(mate_score=10000)
+            if eval_cp is not None and abs(eval_cp) < 100:
+                if debug_mode:
+                    print(f"[DEBUG] Skipping quiet endgame position")
+                return False
+    
+    # Continue with existing checks...
+    # Always analyze tactical positions
+    if board_before.fullmove_number <= 20:  # Opening/middlegame
         return True
     
-    if best_move_info.get('pv') and board_before.is_capture(best_move_info['pv'][0]):
-        return True
+    # Always analyze if best move is mate or capture
+    if best_move_info:
+        if best_move_info["score"].pov(turn_color).is_mate():
+            return True
+        
+        if best_move_info.get('pv') and board_before.is_capture(best_move_info['pv'][0]):
+            return True
     
-    # Always analyze our captures or checks, as they are tactically sharp
+    # Always analyze our captures and checks
     if board_before.is_capture(move_played) or board_before.gives_check(move_played):
         return True
-
-    # --- Default Behavior ---
-
-    # For other moves, if we are past the opening, default to not analyzing unless a heuristic above was met.
-    # This will reduce engine calls.
-    if board_before.fullmove_number > 10:
-        if debug_mode:
-            print(f"[DEBUG] Skipping analysis: non-critical middlegame/endgame move.")
-        return False
     
-    # In the opening, it's generally good to analyze more moves.
-    return True
+    return True  # Default to analyzing
 
 def categorize_blunder_optimized(board_before, board_after, move_played, info_before_move, info_after_move, 
                                 best_move_info, state_manager, debug_mode, actual_move_number):
-    """Optimized blunder categorization"""
+    """Optimized blunder categorization with LAZY EVALUATION (Step 1.3)"""
     move_played_san = board_before.san(move_played)
     turn_color = board_before.turn
     
-    # Calculate win probability drop
+    # Calculate win probability drop FIRST
     eval_before = info_before_move["score"].pov(turn_color).score(mate_score=10000)
     eval_after = info_after_move["score"].pov(turn_color).score(mate_score=10000)
     
+    # NEW: Early exit if evaluation change is minimal
+    if eval_before is not None and eval_after is not None:
+        eval_drop = abs(eval_before - eval_after)  # Use absolute value for proper comparison
+        if eval_drop < MIN_EVAL_DROP_FOR_ANALYSIS:  # Less than 0.5 pawn drop
+            if debug_mode:
+                print(f"[DEBUG] Skipping - minimal evaluation change: {eval_drop}")
+            return None
+    
+    # Continue with win probability calculation...
     state_manager.update_eval(eval_after)
     
     if eval_before is not None and eval_after is not None:
@@ -1251,54 +1291,19 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
         else:
             win_prob_drop = 0.0
     
-    # Priority checks in order of frequency/importance
+    # REORDERED: Check by frequency (most common first) and cost (cheapest first)
     
-    # 1. Checkmates (fast check)
-    after_eval = info_after_move["score"].pov(turn_color)
-    if after_eval.is_mate() and after_eval.mate() < 0:
-        mate_in = abs(after_eval.mate())
-        
-        # Avoid duplicate checkmate reports
-        if not state_manager.in_losing_position or mate_in <= 1:
-            if actual_move_number - state_manager.last_checkmate_move > 1:
-                state_manager.consecutive_checkmates += 1
-                state_manager.last_checkmate_move = actual_move_number
-                
-                return {
-                    "category": "Allowed Checkmate",
-                    "move_number": actual_move_number,
-                    "description": f"your move {move_played_san} allows checkmate in {mate_in}",
-                    "win_prob_drop": win_prob_drop,
-                    "move_san": move_played_san
-                }
-    
-    # 2. Missed checkmate
-    best_eval = best_move_info["score"].pov(turn_color)
-    if best_eval.is_mate() and best_eval.mate() > 0:
-        if not after_eval.is_mate() or (after_eval.is_mate() and after_eval.mate() > best_eval.mate()):
-            mate_in = best_eval.mate()
-            best_move = best_move_info['pv'][0]
-            best_move_san = board_before.san(best_move)
-            
-            return {
-                "category": "Missed Checkmate",
-                "move_number": actual_move_number,
-                "description": f"your move {move_played_san} missed checkmate in {mate_in} with {best_move_san}",
-                "win_prob_drop": max(win_prob_drop, 50.0),
-                "move_san": move_played_san
-            }
-    
-    # 3. Material issues (most common)
+    # 1. CHEAP CHECK: Hanging pieces (most common, very fast)
     if win_prob_drop >= MISTAKE_THRESHOLD:
-        # Check hanging pieces first (faster)
         hanging_result = check_for_hanging_piece_optimized(board_before, move_played, board_after, 
                                                           turn_color, state_manager, debug_mode, actual_move_number)
         if hanging_result:
             hanging_result["win_prob_drop"] = win_prob_drop
             hanging_result["move_san"] = move_played_san
             return hanging_result
-        
-        # Check missed material
+    
+    # 2. CHEAP CHECK: Missed material (common, fast)
+    if win_prob_drop >= MISTAKE_THRESHOLD:
         missed_material = check_for_missed_material_gain_optimized(board_before, best_move_info, move_played, 
                                                                   state_manager, debug_mode, actual_move_number)
         if missed_material:
@@ -1306,8 +1311,39 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
             missed_material["move_san"] = move_played_san
             return missed_material
     
-    # 4. Traps (only if significant drop)
-    if win_prob_drop >= TRAP_THRESHOLD:
+    # 3. MEDIUM CHECK: Checkmates (less common, medium cost)
+    after_eval = info_after_move["score"].pov(turn_color)
+    if after_eval.is_mate() and after_eval.mate() < 0:
+        # Only check for new checkmates
+        if not state_manager.in_losing_position or abs(after_eval.mate()) <= 1:
+            mate_result = {
+                "category": "Allowed Checkmate",
+                "move_number": actual_move_number,
+                "description": f"your move {move_played_san} allows checkmate in {abs(after_eval.mate())}",
+                "win_prob_drop": win_prob_drop,
+                "move_san": move_played_san
+            }
+            return mate_result
+    
+    # Check missed checkmate
+    best_eval = best_move_info["score"].pov(turn_color)
+    if best_eval.is_mate() and best_eval.mate() > 0:
+        if not after_eval.is_mate() or (after_eval.is_mate() and after_eval.mate() > best_eval.mate()):
+            missed_mate_result = {
+                "category": "Missed Checkmate",
+                "move_number": actual_move_number,
+                "description": f"your move {move_played_san} missed checkmate in {best_eval.mate()}",
+                "win_prob_drop": max(win_prob_drop, 50.0),
+                "move_san": move_played_san
+            }
+            return missed_mate_result
+    
+    # 4. EXPENSIVE CHECK: Traps (uncommon, very expensive)
+    # NEW: Only check traps if significant drop AND not already found other blunders
+    # Additional constraint: only in middlegame where traps are more common
+    if (win_prob_drop >= TRAP_THRESHOLD and 
+        win_prob_drop >= EXPENSIVE_CHECK_THRESHOLD and 
+        10 <= board_before.fullmove_number <= 30):  # Only check traps in middlegame
         trap_result = detect_trap_optimized(board_before, move_played, board_after, turn_color, 
                                           state_manager, debug_mode)
         if trap_result:
@@ -1316,9 +1352,9 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
             trap_result["move_san"] = move_played_san
             return trap_result
     
-    # 5. General mistakes (threshold-based)
+    # 5. FALLBACK: General mistakes (only if nothing else found)
     if board_before.fullmove_number <= 15:
-        # Opening
+        # Opening thresholds...
         if win_prob_drop >= OPENING_BLUNDER:
             severity = "Blunder"
         elif win_prob_drop >= OPENING_MISTAKE:
@@ -1326,7 +1362,7 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
         else:
             return None
     else:
-        # Middle/endgame
+        # Middle/endgame thresholds...
         if win_prob_drop >= CRITICAL_THRESHOLD:
             severity = "Critical blunder"
         elif win_prob_drop >= BLUNDER_THRESHOLD:
@@ -1336,11 +1372,11 @@ def categorize_blunder_optimized(board_before, board_after, move_played, info_be
         else:
             return None
     
+    # Only create general mistake if we have a better move to suggest
     if severity in ["Mistake", "Blunder", "Critical blunder"]:
         best_move = best_move_info['pv'][0] if best_move_info.get('pv') else None
         if best_move:
             best_move_san = board_before.san(best_move)
-            
             return {
                 "category": severity,
                 "move_number": actual_move_number,
@@ -1362,14 +1398,41 @@ def analyze_positions_batch(engine, positions_and_limits, debug_mode):
         List of analysis info objects
     """
     results = []
-    # Check if engine supports batch analysis
-    if hasattr(engine, 'analyse_batch'):
-        # Use native batch support
-        results = engine.analyse_batch(positions_and_limits)
-    else:
-        # Fallback to sequential with reduced overhead
+    
+    # Check if batch analysis is enabled
+    if not ENABLE_BATCH_ENGINE_ANALYSIS:
+        # Fallback to sequential analysis
         for board, limit in positions_and_limits:
             results.append(engine.analyse(board, limit))
+        return results
+    
+    # Skip batching for small numbers of positions (overhead not worth it)
+    total_positions = len(positions_and_limits)
+    if total_positions < 10:
+        # Use sequential for small batches
+        for board, limit in positions_and_limits:
+            results.append(engine.analyse(board, limit))
+        return results
+    
+    # Process in batches of configured size for larger sets
+    for i in range(0, total_positions, BATCH_ANALYSIS_SIZE):
+        batch = positions_and_limits[i:i + BATCH_ANALYSIS_SIZE]
+        
+        if debug_mode and total_positions > BATCH_ANALYSIS_SIZE:
+            print(f"[DEBUG] Processing batch {i//BATCH_ANALYSIS_SIZE + 1} of {(total_positions + BATCH_ANALYSIS_SIZE - 1)//BATCH_ANALYSIS_SIZE} ({len(batch)} positions)")
+        
+        # Check if engine supports batch analysis
+        if hasattr(engine, 'analyse_batch'):
+            # Use native batch support
+            batch_results = engine.analyse_batch(batch)
+        else:
+            # Fallback to sequential with reduced overhead
+            batch_results = []
+            for board, limit in batch:
+                batch_results.append(engine.analyse(board, limit))
+        
+        results.extend(batch_results)
+    
     return results
 
 def analyze_chunk(chunk_data):

@@ -18,24 +18,31 @@ STOCKFISH_PATH = os.environ.get('STOCKFISH_PATH', os.path.join(os.path.dirname(_
 BLUNDER_THRESHOLD = 10
 ENGINE_THINK_TIME = 0.08  # Changed to balanced for better accuracy
 
+# Batch Engine Analysis Configuration
+ENABLE_BATCH_ENGINE_ANALYSIS = True
+BATCH_ANALYSIS_SIZE = 20  # Positions per batch
+
+# Position Filtering Thresholds (Step 1.2 Enhancement)
+SKIP_FORCED_MOVES = True
+SKIP_BOOK_MOVES = True
+SKIP_OBVIOUS_RECAPTURES = True
+SKIP_TABLEBASE_POSITIONS = True
+TABLEBASE_PIECE_LIMIT = 6
+
+# Lazy Evaluation Thresholds (Step 1.3 Enhancement)
+MIN_EVAL_DROP_FOR_ANALYSIS = 50  # Centipawns
+EXPENSIVE_CHECK_THRESHOLD = 25    # Win probability drop % before running expensive checks (increased to reduce trap detection)
+
 # Game Analysis Settings
 GAMES_TO_FETCH = 1
 MAX_GAMES_ALLOWED = 100  # Hard cap to prevent server overload
 DAILY_GAME_LIMIT = 200   # Games per user per day
 
-# Analysis Optimization Settings
-POSITION_CACHE_SIZE = 1000      # LRU cache size for position analysis
-SEE_CACHE_SIZE = 512            # LRU cache size for SEE calculations
-ENABLE_PARALLEL_ANALYSIS = True  # Enable parallel game analysis
-DYNAMIC_THINK_TIME = True       # Enable dynamic engine think time adjustment
-MIN_THINK_TIME = 0.03          # Minimum engine think time (seconds)
-MAX_THINK_TIME = 0.3           # Maximum engine think time (seconds)
-
-# Analysis Depth Mapping (Optimized for speed vs accuracy balance)
+# Analysis Depth Mapping (Balanced speed vs accuracy)
 ANALYSIS_DEPTH_MAPPING = {
-    'fast': 0.05,      # FAST: 50ms per move (2x faster than before)
-    'balanced': 0.08,  # BALANCED: 80ms per move (optimal)
-    'deep': 0.12       # DEEP: 120ms per move (more accurate)
+    'fast': 0.05,     # FAST: 80ms per move (was 100ms)
+    'balanced': 0.08, # BALANCED: 150ms per move (was 200ms)  
+    'deep': 0.12       # DEEP: 300ms per move (was 500ms)
 }
 
 # ========================================
@@ -254,11 +261,6 @@ ENGINE_POOL_SIZE = 6               # Increased from 2 to support parallel proces
 GAME_BATCH_SIZE = 10               # Games per batch for parallel processing
 MEMORY_STREAMING_ENABLED = False   # Disable streaming for stability - collect in memory instead
 
-# Batch Processing Configuration
-ENABLE_GAME_BATCHING = True     # Enable batching for large analysis
-BATCH_SIZE_THRESHOLD = 50       # Use batching for 50+ games
-MOVES_PER_BATCH = 100          # Process 100 moves per batch
-
 # Performance Monitoring
 PERFORMANCE_LOGGING_ENABLED = True
 PROGRESS_UPDATE_INTERVAL = 5       # Update progress every N games
@@ -275,6 +277,24 @@ STOCKFISH_EXECUTABLE = "stockfish.exe"
 STOCKFISH_DIR = "stockfish"
 GAMES_DIR = "games"
 OLD_FILES_DIR = "old files"
+
+# ========================================
+# FUTURE OPTIMIZATION PLACEHOLDERS
+# ========================================
+
+# Caching Configuration (for future Phase 3 optimizations)
+POSITION_CACHE_SIZE = 10000
+SEE_CACHE_SIZE = 5000
+
+# Dynamic Think Time (for future Phase 4 optimizations)
+DYNAMIC_THINK_TIME = False
+MIN_THINK_TIME = 0.05
+MAX_THINK_TIME = 0.15
+
+# Game Batching (for future Phase 2 optimizations)
+ENABLE_GAME_BATCHING = False
+BATCH_SIZE_THRESHOLD = 50
+MOVES_PER_BATCH = 10
 
 # ========================================
 # LOGGING CONFIGURATION
