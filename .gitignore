@@ -1,0 +1,93 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Environment variables
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Flask instance folder
+instance/
+
+# Development files
+*.log
+*.tmp
+*.temp
+debug_*.py
+test_*.py
+*_test.py
+performance_logs/
+analysis_cache/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Documentation (development)
+*.md
+!README.md
+planning/
+docs/development/
+
+# Games/Test files (keep some examples)
+games/testgames.pgn
+games/unitTests.pgn
+*.txt
+!requirements.txt
+!runtime.txt
+
+# Node modules (React)
+mcb-react/node_modules/
+mcb-react/dist/
+mcb-react/.env
+mcb-react/*.log
+
+# Stockfish (too large for git)
+stockfish/stockfish.exe
+stockfish/stockfish
+
+# Temporary analysis files
+temp_games/
+analysis_temp/ 
