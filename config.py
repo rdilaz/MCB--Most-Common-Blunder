@@ -14,7 +14,7 @@ load_dotenv()
 # ========================================
 
 # Engine Configuration
-STOCKFISH_PATH = os.environ.get('STOCKFISH_PATH', os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe"))
+STOCKFISH_PATH = os.environ.get('STOCKFISH_PATH', os.path.join(os.path.dirname(__file__), "stockfish", "stockfish"))
 BLUNDER_THRESHOLD = 10
 ENGINE_THINK_TIME = 0.08  # Changed to balanced for better accuracy
 
@@ -271,7 +271,7 @@ PROGRESS_UPDATE_INTERVAL = 5       # Update progress every N games
 
 # Default paths
 DEFAULT_PGN_FILE = "testgames.pgn"
-STOCKFISH_EXECUTABLE = "stockfish.exe"
+STOCKFISH_EXECUTABLE = "stockfish"
 
 # Directory structure
 STOCKFISH_DIR = "stockfish"
