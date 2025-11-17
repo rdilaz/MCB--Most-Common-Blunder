@@ -14,7 +14,7 @@ load_dotenv()
 # ========================================
 
 # Engine Configuration
-STOCKFISH_PATH = os.environ.get('STOCKFISH_PATH', os.path.join(os.path.dirname(__file__), "stockfish", "stockfish"))
+STOCKFISH_PATH = os.environ.get('STOCKFISH_PATH', '/app/stockfish/stockfish')
 BLUNDER_THRESHOLD = 10
 ENGINE_THINK_TIME = 0.08  # Changed to balanced for better accuracy
 
