@@ -32,8 +32,12 @@ logger = logging.getLogger(__name__)
 # Create service instances
 analysis_service = create_analysis_service()
 
-# Redis-based rate limiting (production-ready)
-from security.rate_limiter import RateLimiter
+# Conditionally import and use Redis-based rate limiting
+if os.environ.get('REDIS_URL'):
+    from security.rate_limiter import RateLimiter
+else:
+    # Fallback to a simple in-memory limiter if Redis is not configured
+    from security.in_memory_limiter import InMemoryRateLimiter as RateLimiter
 rate_limiter = RateLimiter()
 
 # Timeout handlers for production

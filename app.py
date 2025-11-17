@@ -24,6 +24,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Create the application instance globally for Gunicorn
+app = create_app()
+
 def main():
     """Main entry point for the application with production features."""
     try:
@@ -56,4 +59,4 @@ def main():
         raise
 
 if __name__ == '__main__':
-    main() 
+    main()

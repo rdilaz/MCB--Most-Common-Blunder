@@ -18,4 +18,4 @@ RUN chmod +x /app/stockfish/stockfish
 COPY . .
 
 # Tell the container to run your app using Gunicorn when it starts
-CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "2", "--threads", "4", "app:main"]
+CMD ["gunicorn", "--bind", "0.0.0.0:10000", "--workers", "2", "--threads", "4", "app:app"]
