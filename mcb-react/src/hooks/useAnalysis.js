@@ -180,9 +180,6 @@ export const useAnalysis = () => {
       heroStat: results.hero_stat
     });
     
-    // Set global variable for backward compatibility (was missing!)
-    window.gamesWithBlunders = results.games_with_blunders || [];
-    
     // Show results after a brief delay
     setTimeout(() => {
       updateUI({ resultsVisible: true });

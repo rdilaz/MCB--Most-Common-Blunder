@@ -11,17 +11,7 @@ const ResultsSection = () => {
     return null;
   }
 
-  const getAnalysisDuration = () => {
-    if (analysis.results.analysis_time_seconds) {
-      return analysis.results.analysis_time_seconds.toFixed(2);
-    }
-    if (ui.progressLogs && ui.progressLogs.length > 1) {
-      const startTime = ui.progressLogs[0].rawTimestamp;
-      const endTime = ui.progressLogs[ui.progressLogs.length - 1].rawTimestamp;
-      return ((endTime - startTime) / 1000).toFixed(2);
-    }
-    return 'a few';
-  };
+
 
   const gameNoun = analysis.results.games_analyzed === 1 ? 'game' : 'games';
 

@@ -45,20 +45,3 @@ export const formatBlunderDescription = (description) => {
   
   return description;
 };
-
-/**
- * Format analysis stats text
- */
-export const formatAnalysisStats = (gamesAnalyzed, totalBlunders) => {
-  return `Analyzed ${gamesAnalyzed || 0} games • Found ${totalBlunders || 0} blunders`;
-};
-
-/**
- * Create progress log entry data
- */
-export const createProgressLogEntry = (message) => {
-  return {
-    message,
-    timestamp: new Date().toLocaleTimeString()
-  };
-}; 
