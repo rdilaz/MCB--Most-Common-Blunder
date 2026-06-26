@@ -2,17 +2,15 @@ import chess
 import chess.pgn
 import chess.engine
 import os 
-import argparse
 import math
-import time
 from typing import Dict, List, Set, Optional, Tuple
 from dataclasses import dataclass
 from functools import lru_cache
-import concurrent.futures
 from config import (ENABLE_BATCH_ENGINE_ANALYSIS, BATCH_ANALYSIS_SIZE, 
                     SKIP_FORCED_MOVES, SKIP_BOOK_MOVES, SKIP_OBVIOUS_RECAPTURES, 
                     SKIP_TABLEBASE_POSITIONS, TABLEBASE_PIECE_LIMIT,
-                    MIN_EVAL_DROP_FOR_ANALYSIS, EXPENSIVE_CHECK_THRESHOLD)
+                    MIN_EVAL_DROP_FOR_ANALYSIS, EXPENSIVE_CHECK_THRESHOLD,
+                    BLUNDER_CATEGORY_PRIORITY, PIECE_VALUES, PIECE_NAMES)
 
 # ---- Opening Book (Placeholder for Optimization) ----
 # To enable, download a polyglot book (e.g., gm2001.bin) and place it in the project root.
@@ -77,45 +75,6 @@ OPENING_BLUNDER = 30.0
 
 MATERIAL_LOSS_THRESHOLD = 200
 TRAP_THRESHOLD = 12.0
-
-BLUNDER_CATEGORY_PRIORITY = {
-    "Allowed Checkmate": 1,
-    "Missed Checkmate": 2,
-    "Allowed Trap": 3,
-    "Hanging a Piece": 4,
-    "Allowed Winning Exchange for Opponent": 5,
-    "Allowed Fork": 6,
-    "Missed Fork": 7,
-    "Allowed Discovered Attack": 8,
-    "Missed Discovered Attack": 9,
-    "Losing Exchange": 10,
-    "Missed Material Gain": 11,
-    "Allowed Opportunity to Pressure Pinned Piece": 12,
-    "Missed Opportunity to Pressure Pinned Piece": 13,
-    "Allowed Pin": 14,
-    "Missed Pin": 15,
-    "Allowed Kick": 16,
-    "Missed Kick": 17,
-    "Mistake": 18
-}
-
-PIECE_VALUES = {
-    chess.PAWN: 100,
-    chess.KNIGHT: 300,
-    chess.BISHOP: 320,
-    chess.ROOK: 500,
-    chess.QUEEN: 900,
-    chess.KING: 10000
-}
-
-PIECE_NAMES = {
-    chess.PAWN: "Pawn",
-    chess.KNIGHT: "Knight",
-    chess.BISHOP: "Bishop",
-    chess.ROOK: "Rook",
-    chess.QUEEN: "Queen",
-    chess.KING: "King"
-}
 
 @dataclass
 class TacticalWeakness:
@@ -1574,164 +1533,3 @@ def analyze_game_optimized(game, engine, target_user, blunder_threshold, engine_
         blunder_idx += 1
 
     return blunders
-
-def main():
-    """Optimized main function"""
-    start = time.perf_counter()
-
-    parser = argparse.ArgumentParser(description="MCB Chess Analyzer - Optimized Edition")
-    parser.add_argument("--pgn", default="games/unitTests.pgn", help="Path to PGN file")
-    parser.add_argument("--username", default="roygbiv6", help="Username to analyze")
-    parser.add_argument("-d", "--debug", action="store_true", help="Enable debug output")
-    parser.add_argument("--stockfish_path", default=STOCKFISH_PATH_DEFAULT, help="Path to Stockfish")
-    parser.add_argument("--blunder_threshold", type=float, default=BLUNDER_THRESHOLD_DEFAULT, 
-                       help="Win probability threshold for blunders")
-    parser.add_argument("--engine_think_time", type=float, default=ENGINE_THINK_TIME_DEFAULT, 
-                       help="Engine think time per move")
-    parser.add_argument("--threads", type=int, default=1, help="Number of threads for parallel analysis")
-    args = parser.parse_args()
-
-    print(f"=== MCB Chess Analyzer - Optimized Edition ===\n")
-    print(f"Configuration:")
-    print(f"  PGN File: {args.pgn}")
-    print(f"  Username: {args.username}")
-    print(f"  Blunder Threshold: {args.blunder_threshold}%")
-    print(f"  Engine Think Time: {args.engine_think_time}s")
-    print(f"  Debug Mode: {'ON' if args.debug else 'OFF'}")
-    print(f"  Threads: {args.threads}\n")
-
-    # Initialize engine pool for parallel processing
-    engines = []
-    try:
-        # We now initialize engines inside the threads, so this is just a check
-        engine = chess.engine.SimpleEngine.popen_uci(args.stockfish_path)
-        engine.quit()
-        print(f"[OK] Stockfish engine at '{args.stockfish_path}' is valid.\n")
-    except Exception as e:
-        print(f"[ERROR] Error initializing Stockfish: {e}")
-        return
-    
-    try:
-        # Read all games first
-        games = []
-        with open(args.pgn) as pgn_file:
-            while True:
-                game = chess.pgn.read_game(pgn_file)
-                if game is None:
-                    break
-                games.append(game)
-        
-        print(f"Loaded {len(games)} games for analysis\n")
-        
-        total_blunders = []
-        blunder_counts = {}
-        
-        # Process games (parallel if threads > 1)
-        if args.threads > 1 and len(games) > 1:
-            # Parallel processing for multiple games
-            with concurrent.futures.ThreadPoolExecutor(max_workers=args.threads) as executor:
-                futures = []
-                for i, game in enumerate(games):
-                    # Each game gets its own analysis process
-                    future = executor.submit(process_single_game, game, None, args.username, 
-                                           args.blunder_threshold, args.engine_think_time, 
-                                           args.debug, i + 1, args.stockfish_path, args.threads)
-                    futures.append(future)
-                
-                # Collect results
-                for future in concurrent.futures.as_completed(futures):
-                    game_num, blunders = future.result()
-                    if blunders:
-                        total_blunders.extend(blunders)
-                        for blunder in blunders:
-                            category = blunder['category']
-                            blunder_counts[category] = blunder_counts.get(category, 0) + 1
-        else:
-            # Sequential processing
-            for i, game in enumerate(games):
-                game_num, blunders = process_single_game(game, None, args.username,
-                                                        args.blunder_threshold, args.engine_think_time,
-                                                        args.debug, i + 1, args.stockfish_path, 1)
-                if blunders:
-                    total_blunders.extend(blunders)
-                    for blunder in blunders:
-                        category = blunder['category']
-                        blunder_counts[category] = blunder_counts.get(category, 0) + 1
-                
-    except FileNotFoundError:
-        print(f"[ERROR] Error: PGN file '{args.pgn}' not found.")
-    except Exception as e:
-        print(f"[ERROR] Error reading PGN: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        # Clean up engines is now handled in threads
-        print("[OK] Analysis complete.")
-
-    # Summary
-    print("\n=== Analysis Summary ===")
-    print(f"Total games analyzed: {len(games)}")
-    print(f"Total blunders found: {len(total_blunders)}")
-    
-    if blunder_counts:
-        print("\nBlunder Distribution:")
-        sorted_categories = sorted(blunder_counts.items(), 
-                                 key=lambda x: BLUNDER_CATEGORY_PRIORITY.get(x[0], 999))
-        for category, count in sorted_categories:
-            percentage = (count / len(total_blunders)) * 100
-            print(f"  {category}: {count} ({percentage:.1f}%)")
-    
-    end = time.perf_counter()
-    elapsed = end - start
-    print(f"\nTotal runtime: {elapsed:.2f} seconds")
-    
-    if len(games) > 0:
-        avg_time = elapsed / len(games)
-        print(f"Average time per game: {avg_time:.2f} seconds")
-        
-        # Performance metrics
-        total_moves = sum(len(list(game.mainline_moves())) for game in games)
-        print(f"Total moves analyzed: {total_moves}")
-        print(f"Average time per move: {elapsed / total_moves:.3f} seconds")
-
-def process_single_game(game, engine, username, blunder_threshold, engine_think_time, debug_mode, game_num, stockfish_path, threads):
-    """Process a single game and return results"""
-    white_player = game.headers.get("White", "Unknown")
-    black_player = game.headers.get("Black", "Unknown")
-    result = game.headers.get("Result", "Unknown")
-    
-    print(f"Analyzing Game #{game_num}:")
-    print(f"  {white_player} vs {black_player} ({result})")
-
-    # Always create a new engine instance for each game if not provided
-    close_engine = False
-    if engine is None:
-        import chess.engine
-        engine = chess.engine.SimpleEngine.popen_uci(stockfish_path)
-        close_engine = True
-    
-    blunders = analyze_game_optimized(game, engine, username, blunder_threshold,
-                                    engine_think_time, debug_mode, stockfish_path, threads)
-    
-    if close_engine:
-        engine.quit()
-    
-    if blunders:
-        print(f"\n  Found {len(blunders)} blunders:")
-        for blunder in blunders:
-            category = blunder['category']
-            move_num = blunder['move_number']
-            desc = blunder['description']
-            drop = blunder.get('win_prob_drop', 0)
-            
-            print(f"    Move {move_num}: [{category}] {desc}")
-            if drop > 0:
-                print(f"      Win probability drop: {drop:.1f}%")
-    else:
-        print("  [OK] No significant blunders detected")
-    
-    print()  # Blank line between games
-    return game_num, blunders
-
-if __name__ == "__main__":
-    main()

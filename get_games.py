@@ -1,6 +1,5 @@
 import requests
 import json
-import argparse
 import time  # Add time import for performance tracking
 from urllib.parse import quote
 import asyncio
@@ -67,49 +66,10 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
                 if len(pgns) >= num_games:
                     break
 
-                # Filter 1: Game Type
-                current_game_type = game_data.get("time_class")
-                # If the user selected specific types AND the current game's type isn't in their list, skip.
-                if selected_types and current_game_type not in selected_types:
-                    continue
-
-                # Filter 2: Rated Status
-                is_rated_game = game_data.get("rated", False)
-                if rated_filter == "rated" and not is_rated_game:
-                    continue
-                if rated_filter == "unrated" and is_rated_game:
-                    continue
-                
-                pgn_string = game_data.get("pgn")
-                if pgn_string:
-                    # Extract game metadata
-                    white_player = game_data.get("white", {}).get("username", "Unknown")
-                    black_player = game_data.get("black", {}).get("username", "Unknown")
-                    game_url = game_data.get("url", "")
-                    end_time = game_data.get("end_time", 0)
-                    time_class = game_data.get("time_class", "unknown")
-                    rated = game_data.get("rated", False)
-                    
-                    # Format end time
-                    import datetime
-                    try:
-                        game_date = datetime.datetime.fromtimestamp(end_time).strftime("%Y-%m-%d %H:%M")
-                    except:
-                        game_date = "Unknown date"
-                    
-                    # Store game metadata
-                    game_info = {
-                        "url": game_url,
-                        "white": white_player,
-                        "black": black_player,
-                        "date": game_date,
-                        "time_class": time_class,
-                        "rated": rated,
-                        "target_player": username  # Which player we're analyzing
-                    }
-                    
-                    pgns.append(pgn_string)
-                    games_metadata.append(game_info)
+                pgn, metadata = process_game_data(game_data, username, selected_types, rated_filter)
+                if pgn and metadata:
+                    pgns.append(pgn)
+                    games_metadata.append(metadata)
                     games_added_this_month += 1
             
             print(f"   [STATS] Added {games_added_this_month} games after filtering (Total: {len(pgns)}/{num_games})")
@@ -118,36 +78,7 @@ def fetch_user_games(username, num_games, selected_types, rated_filter):
         print(f"[SUCCESS] Game collection completed in {games_time:.2f} seconds")
         print(f"Successfully fetched {len(pgns)} games.")
 
-        # --- IMPROVED FILENAME LOGIC ---
-        file_start = time.time()
-        type_for_filename = type_str.replace(", ", "-") if selected_types else "all"
-        base_filename = f"{username}_last_{len(pgns)}_{type_for_filename}_{rated_filter}.pgn"
-        
-        # Use safe file operations
-        try:
-            from utils import safe_file_operations
-            file_name = safe_file_operations(base_filename)
-        except ImportError:
-            # Fallback if utils not available
-            file_name = base_filename
-        
-        print(f"   [FILE] Writing PGN file '{file_name}'...")
-        with open(file_name, "w", encoding="utf-8") as f:
-            f.write("\n\n".join(pgns))
-        
-        file_time = time.time() - file_start
-        total_time = time.time() - fetch_start
-        print(f"   [SUCCESS] PGN file written in {file_time:.3f} seconds")
-        print(f"[COMPLETE] Total fetch time: {total_time:.2f} seconds")
-        print(f"PGN file saved as '{file_name}'")
-        
-        # Also save games metadata as JSON for debugging
-        metadata_file = file_name.replace('.pgn', '_metadata.json')
-        with open(metadata_file, 'w', encoding='utf-8') as f:
-            json.dump(games_metadata, f, indent=2)
-        print(f"Game metadata saved as '{metadata_file}'")
-        
-        return file_name, games_metadata
+        return save_games_data(username, pgns, games_metadata, selected_types, rated_filter, fetch_start)
     
     except requests.exceptions.RequestException as e:
         print(f"API error occurred: {e}")
@@ -227,36 +158,7 @@ async def fetch_user_games_async(username: str, num_games: int, selected_types: 
 
             print(f"[SUCCESS] Async game collection completed. Found {len(pgns)} games.")
 
-            # --- IMPROVED FILENAME LOGIC ---
-            file_start = time.time()
-            type_for_filename = type_str.replace(", ", "-") if selected_types else "all"
-            base_filename = f"{username}_last_{len(pgns)}_{type_for_filename}_{rated_filter}.pgn"
-            
-            # Use safe file operations
-            try:
-                from utils import safe_file_operations
-                file_name = safe_file_operations(base_filename)
-            except ImportError:
-                # Fallback if utils not available
-                file_name = base_filename
-            
-            print(f"   [FILE] Writing PGN file '{file_name}'...")
-            with open(file_name, "w", encoding="utf-8") as f:
-                f.write("\n\n".join(pgns))
-            
-            file_time = time.time() - file_start
-            total_time = time.time() - fetch_start
-            print(f"   [SUCCESS] PGN file written in {file_time:.3f} seconds")
-            print(f"[COMPLETE] Total async fetch time: {total_time:.2f} seconds")
-            print(f"PGN file saved as '{file_name}'")
-            
-            # Also save games metadata as JSON for debugging
-            metadata_file = file_name.replace('.pgn', '_metadata.json')
-            with open(metadata_file, 'w', encoding='utf-8') as f:
-                json.dump(games_metadata, f, indent=2)
-            print(f"Game metadata saved as '{metadata_file}'")
-            
-            return file_name, games_metadata
+            return save_games_data(username, pgns, games_metadata, selected_types, rated_filter, fetch_start)
 
     except Exception as e:
         print(f"Async API error occurred: {e}")
@@ -291,32 +193,10 @@ async def fetch_archive_games(client: httpx.AsyncClient, archive_url: str, usern
             if len(pgns) >= num_games:
                 break
 
-            # Apply filters (same logic as original)
-            current_game_type = game_data.get("time_class")
-            if selected_types and current_game_type not in selected_types:
-                continue
-
-            is_rated_game = game_data.get("rated", False)
-            if rated_filter == "rated" and not is_rated_game:
-                continue
-            if rated_filter == "unrated" and is_rated_game:
-                continue
-
-            pgn_string = game_data.get("pgn")
-            if pgn_string:
-                # Extract metadata (same as original)
-                game_info = {
-                    "url": game_data.get("url", ""),
-                    "white": game_data.get("white", {}).get("username", "Unknown"),
-                    "black": game_data.get("black", {}).get("username", "Unknown"),
-                    "date": format_game_date(game_data.get("end_time", 0)),
-                    "time_class": game_data.get("time_class", "unknown"),
-                    "rated": game_data.get("rated", False),
-                    "target_player": username
-                }
-
-                pgns.append(pgn_string)
-                games_metadata.append(game_info)
+            pgn, metadata = process_game_data(game_data, username, selected_types, rated_filter)
+            if pgn and metadata:
+                pgns.append(pgn)
+                games_metadata.append(metadata)
 
         return pgns, games_metadata
 
@@ -332,6 +212,71 @@ def format_game_date(end_time: int) -> str:
         return datetime.datetime.fromtimestamp(end_time).strftime("%Y-%m-%d %H:%M")
     except:
         return "Unknown date"
+
+
+def process_game_data(game_data: dict, username: str, selected_types: List[str], rated_filter: str) -> Tuple[Optional[str], Optional[dict]]:
+    """
+    Process a single game data dict, apply filters, and extract metadata.
+    Returns (pgn_string, game_metadata) if it passes filters, else (None, None).
+    """
+    current_game_type = game_data.get("time_class")
+    if selected_types and current_game_type not in selected_types:
+        return None, None
+
+    is_rated_game = game_data.get("rated", False)
+    if rated_filter == "rated" and not is_rated_game:
+        return None, None
+    if rated_filter == "unrated" and is_rated_game:
+        return None, None
+
+    pgn_string = game_data.get("pgn")
+    if pgn_string:
+        game_info = {
+            "url": game_data.get("url", ""),
+            "white": game_data.get("white", {}).get("username", "Unknown"),
+            "black": game_data.get("black", {}).get("username", "Unknown"),
+            "date": format_game_date(game_data.get("end_time", 0)),
+            "time_class": current_game_type if current_game_type else "unknown",
+            "rated": is_rated_game,
+            "target_player": username
+        }
+        return pgn_string, game_info
+        
+    return None, None
+
+
+def save_games_data(username: str, pgns: List[str], games_metadata: List[dict], selected_types: List[str], rated_filter: str, fetch_start: float) -> Tuple[str, List[dict]]:
+    """
+    Saves PGNs and metadata to files and logs performance timing.
+    Returns (file_name, games_metadata)
+    """
+    file_start = time.time()
+    type_str = ", ".join(selected_types) if selected_types else "all"
+    type_for_filename = type_str.replace(", ", "-") if selected_types else "all"
+    base_filename = f"{username}_last_{len(pgns)}_{type_for_filename}_{rated_filter}.pgn"
+    
+    try:
+        from utils import safe_file_operations
+        file_name = safe_file_operations(base_filename)
+    except ImportError:
+        file_name = base_filename
+    
+    print(f"   [FILE] Writing PGN file '{file_name}'...")
+    with open(file_name, "w", encoding="utf-8") as f:
+        f.write("\n\n".join(pgns))
+    
+    file_time = time.time() - file_start
+    total_time = time.time() - fetch_start
+    print(f"   [SUCCESS] PGN file written in {file_time:.3f} seconds")
+    print(f"[COMPLETE] Total fetch time: {total_time:.2f} seconds")
+    print(f"PGN file saved as '{file_name}'")
+    
+    metadata_file = file_name.replace('.pgn', '_metadata.json')
+    with open(metadata_file, 'w', encoding='utf-8') as f:
+        json.dump(games_metadata, f, indent=2)
+    print(f"Game metadata saved as '{metadata_file}'")
+    
+    return file_name, games_metadata
 
 
 def fetch_user_games_with_async(username: str, num_games: int, selected_types: List[str], rated_filter: str) -> Tuple[Optional[str], List[dict]]:
@@ -361,50 +306,3 @@ def fetch_user_games_with_async(username: str, num_games: int, selected_types: L
     except RuntimeError:
         # No running event loop, safe to use asyncio.run
         return asyncio.run(fetch_user_games_async(username, num_games, selected_types, rated_filter))
-
-# argparse for debugging
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Fetch recent games for a Chess.com user.",
-        formatter_class=argparse.RawTextHelpFormatter # Improves help message formatting
-    )
-
-    parser.add_argument("--username", type=str, required=True, help="Chess.com username.")
-    parser.add_argument("--num_games", type=int, default=50, help="Number of games to fetch. Default is 50.")
-    parser.add_argument("--filter", type=str, default="rated", choices=["rated", "unrated", "both"],
-                        help="Filter by rated status: 'rated' (default), 'unrated', or 'both'.")
-    
-    # NEW: Replaced --game_type with individual flags for each category
-    parser.add_argument("--rapid", action="store_true", help="Include rapid games.")
-    parser.add_argument("--blitz", action="store_true", help="Include blitz games.")
-    parser.add_argument("--bullet", action="store_true", help="Include bullet games.")
-    parser.add_argument("--daily", action="store_true", help="Include daily games.")
-    
-    args = parser.parse_args()
-
-    # Build a list of the game types the user selected.
-    selected_types = []
-    if args.rapid:
-        selected_types.append("rapid")
-    if args.blitz:
-        selected_types.append("blitz")
-    if args.bullet:
-        selected_types.append("bullet")
-    if args.daily:
-        selected_types.append("daily")
-    
-    # If the user provides no flags, the list remains empty, which we'll treat as "all".
-
-    print("\n--- Running in standalone test mode ---")
-    pgn_file, games_metadata = fetch_user_games(
-        username=args.username,
-        num_games=args.num_games,
-        selected_types=selected_types, # Pass the list to our function
-        rated_filter=args.filter
-    )
-    
-    if pgn_file and games_metadata:
-        print(f"\n[GAMES] Games analyzed:")
-        for i, game in enumerate(games_metadata, 1):
-            print(f"  {i}. {game['white']} vs {game['black']} ({game['time_class']}) - {game['date']}")
-            print(f"     [LINK] {game['url']}")
