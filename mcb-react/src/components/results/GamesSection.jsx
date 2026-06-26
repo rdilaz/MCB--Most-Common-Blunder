@@ -1,9 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import GameBlunderItem from './GameBlunderItem';
+import CollapsibleSection from '../ui/CollapsibleSection';
 
 const GamesSection = ({ games }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
-
   if (!games || games.length === 0) {
     return (
       <div className="games-by-blunders">
@@ -16,26 +15,25 @@ const GamesSection = ({ games }) => {
   }
 
   return (
-    <div className="games-by-blunders">
-      <div className="games-by-blunders-header" onClick={() => setIsExpanded(!isExpanded)}>
-        <h4>🎯 Games</h4>
-        <span className={`toggle-icon ${isExpanded ? 'rotated' : ''}`}>▼</span>
+    <CollapsibleSection
+      title={<h4>🎯 Games</h4>}
+      containerClassName="games-by-blunders"
+      headerClassName="games-by-blunders-header"
+      contentClassName="games-by-blunders-content"
+    >
+      <p className="games-by-blunders-subtitle">
+        Click on any game to see its specific blunders in chronological order
+      </p>
+      <div className="games-by-blunders-list">
+        {games.map((game, index) => (
+          <GameBlunderItem 
+            key={game.game_number || index} 
+            game={game} 
+          />
+        ))}
       </div>
-      <div className={`games-by-blunders-content ${isExpanded ? '' : 'collapsed'}`}>
-        <p className="games-by-blunders-subtitle">
-          Click on any game to see its specific blunders in chronological order
-        </p>
-        <div className="games-by-blunders-list">
-          {games.map((game, index) => (
-            <GameBlunderItem 
-              key={game.game_number || index} 
-              game={game} 
-            />
-          ))}
-        </div>
-      </div>
-    </div>
+    </CollapsibleSection>
   );
 };
 
-export default GamesSection; 
+export default GamesSection;

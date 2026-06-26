@@ -1,13 +1,8 @@
-import React, { useState } from 'react';
+import React from 'react';
 import BlunderItem from '../ui/BlunderItem';
+import CollapsibleSection from '../ui/CollapsibleSection';
 
 const BlundersSection = ({ blunders }) => {
-  const [isExpanded, setIsExpanded] = useState(true);
-
-  const toggleCollapsed = () => {
-    setIsExpanded(!isExpanded);
-  };
-
   if (!blunders || blunders.length === 0) {
     return (
       <div className="other-blunders">
@@ -20,24 +15,23 @@ const BlundersSection = ({ blunders }) => {
   }
 
   return (
-    <div className="other-blunders">
-      <div className="blunders-section-header" onClick={() => setIsExpanded(!isExpanded)}>
-        <h4>📊 Blunders</h4>
-        <span className={`toggle-icon ${isExpanded ? 'rotated' : ''}`}>▼</span>
+    <CollapsibleSection
+      title={<h4>📊 Blunders</h4>}
+      containerClassName="other-blunders"
+      headerClassName="blunders-section-header"
+      contentClassName="blunders-content"
+    >
+      <div className="blunders-list">
+        {blunders.map((blunder, index) => (
+          <BlunderItem 
+            key={index} 
+            blunder={blunder} 
+            index={index} 
+          />
+        ))}
       </div>
-      <div className={`blunders-content ${isExpanded ? '' : 'collapsed'}`}>
-        <div className="blunders-list">
-          {blunders.map((blunder, index) => (
-            <BlunderItem 
-              key={index} 
-              blunder={blunder} 
-              index={index} 
-            />
-          ))}
-        </div>
-      </div>
-    </div>
+    </CollapsibleSection>
   );
 };
 
-export default BlundersSection; 
+export default BlundersSection;
