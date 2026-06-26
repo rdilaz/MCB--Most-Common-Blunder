@@ -1,11 +1,3 @@
-"""
-MCB - Most Common Blunder Analysis
-Refactored Flask Application using modular architecture.
-Based on app_production.py for production-ready features.
-
-This is the new main application file that replaces the monolithic app.py.
-It uses the new modular structure with production security and optimizations.
-"""
 import os
 import logging
 from flask import Flask
@@ -33,7 +25,7 @@ def main():
         # Log startup message
         logger.info("=" * 60)
         logger.info("🎯 MCB - Most Common Blunder Analysis (Production)")
-        logger.info("🚀 Starting refactored application with security features...")
+        logger.info("🚀 Starting application ...")
         logger.info(f"🌐 Server will run on {'0.0.0.0' if not DEBUG_MODE else '127.0.0.1'}:{PORT}")
         logger.info(f"🔒 Security features: {'ENABLED' if not DEBUG_MODE else 'DEVELOPMENT MODE'}")
         logger.info(f"📊 Rate limiting: {'ENABLED' if not DEBUG_MODE else 'DEVELOPMENT MODE'}")
