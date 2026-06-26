@@ -269,117 +269,37 @@ def register_routes(app: Flask):
                 temp_file_path = temp_file.name
             
             try:
-                # Run analysis using the existing analyze_games.py script
-                import subprocess
-                import sys
-                
-                # Build command
-                cmd = [
-                    sys.executable, 'analyze_games.py',
-                    '--pgn', temp_file_path,
-                    '--username', username,
-                    '--blunder_threshold', str(blunder_threshold),
-                    '--engine_think_time', str(engine_think_time)
-                ]
-                
-                if debug_mode:
-                    cmd.append('--debug')
-                
-                # Run analysis
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=300  # 5 minute timeout
+                # Use native analysis service instead of subprocess
+                results = analysis_service.analyze_multiple_games_enhanced(
+                    pgn_file_path=temp_file_path,
+                    username=username,
+                    stockfish_path=analysis_service.stockfish_path,
+                    blunder_threshold=blunder_threshold,
+                    engine_think_time=engine_think_time,
+                    progress_tracker=None
                 )
                 
-                if result.returncode != 0:
-                    logger.error(f"PGN analysis failed: {result.stderr}")
-                    return create_error_response(f"Analysis failed: {result.stderr}", 500)
+                if "error" in results:
+                    logger.error(f"PGN analysis failed: {results['error']}")
+                    return create_error_response(f"Analysis failed: {results['error']}", 500)
                 
-                # Parse the output to extract blunders
-                # The analyze_games.py script outputs blunders to stdout
-                output_lines = result.stdout.strip().split('\n')
-                blunders = []
+                raw_blunders = results.get("blunders", [])
                 
-                logger.info(f"Parsing {len(output_lines)} lines of output")
+                # Format to match the expected JSON response payload
+                formatted_blunders = []
+                for b in raw_blunders:
+                    formatted_blunders.append({
+                        'move_number': b.get('move_number'),
+                        'category': b.get('category'),
+                        'description': b.get('description', '')
+                    })
                 
-                # Look for the "Found X blunders:" line and parse from there
-                for i, line in enumerate(output_lines):
-                    if 'Found' in line and 'blunders:' in line:
-                        logger.info(f"Found blunders line at index {i}: {line}")
-                        # Parse blunders from the lines after this
-                        for j in range(i + 1, len(output_lines)):
-                            blunder_line = output_lines[j].strip()
-                            
-                            # Skip empty lines
-                            if not blunder_line:
-                                continue
-                                
-                            # Stop when we hit the summary section
-                            if blunder_line.startswith('===') or blunder_line.startswith('[OK]') or blunder_line.startswith('Total'):
-                                logger.info(f"Stopping at summary line: {blunder_line}")
-                                break
-                                
-                            # Parse blunder lines that start with "Move"
-                            if blunder_line.startswith('Move') and ':' in blunder_line:
-                                logger.info(f"Parsing blunder line: {blunder_line}")
-                                try:
-                                    # Extract move number and description
-                                    parts = blunder_line.split(':', 1)
-                                    if len(parts) == 2:
-                                        move_part = parts[0].strip()
-                                        desc_part = parts[1].strip()
-                                        
-                                        # Extract move number
-                                        move_num = None
-                                        if 'Move' in move_part:
-                                            move_num_str = move_part.replace('Move', '').strip()
-                                            try:
-                                                move_num = int(move_num_str)
-                                            except ValueError:
-                                                pass
-                                        
-                                        # Determine category from the description
-                                        category = "Mistake"
-                                        if "[Allowed Trap]" in desc_part:
-                                            category = "Allowed Trap"
-                                        elif "[Missed Material Gain]" in desc_part:
-                                            category = "Missed Material Gain"
-                                        elif "[Hanging a Piece]" in desc_part:
-                                            category = "Hanging a Piece"
-                                        elif "[Critical blunder]" in desc_part:
-                                            category = "Critical Blunder"
-                                        elif "[Blunder]" in desc_part:
-                                            category = "Blunder"
-                                        
-                                        # Clean up the description (remove category tags)
-                                        clean_desc = desc_part
-                                        clean_desc = clean_desc.replace("[Allowed Trap]", "").strip()
-                                        clean_desc = clean_desc.replace("[Missed Material Gain]", "").strip()
-                                        clean_desc = clean_desc.replace("[Hanging a Piece]", "").strip()
-                                        clean_desc = clean_desc.replace("[Critical blunder]", "").strip()
-                                        clean_desc = clean_desc.replace("[Blunder]", "").strip()
-                                        clean_desc = clean_desc.replace("[Mistake]", "").strip()
-                                        
-                                        logger.info(f"Parsed blunder: Move {move_num}, Category: {category}, Description: {clean_desc}")
-                                        
-                                        blunders.append({
-                                            'move_number': move_num,
-                                            'category': category,
-                                            'description': clean_desc
-                                        })
-                                except Exception as e:
-                                    logger.warning(f"Failed to parse blunder line: {blunder_line}, error: {e}")
-                                    continue
-                        break
-                
-                logger.info(f"Total blunders parsed: {len(blunders)}")
+                logger.info(f"Total blunders parsed: {len(formatted_blunders)}")
                 
                 return jsonify({
                     'success': True,
-                    'blunders': blunders,
-                    'total_blunders': len(blunders),
+                    'blunders': formatted_blunders,
+                    'total_blunders': len(formatted_blunders),
                     'analysis_time': 'completed'
                 })
                 
@@ -390,8 +310,6 @@ def register_routes(app: Flask):
                 except Exception as e:
                     logger.warning(f"Failed to delete temporary file: {e}")
                     
-        except subprocess.TimeoutExpired:
-            return create_error_response("Analysis timed out", 408)
         except Exception as e:
             logger.error(f"PGN analysis error: {str(e)}")
             return create_error_response(f"Analysis failed: {str(e)}", 500)
