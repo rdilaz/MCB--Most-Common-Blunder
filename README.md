@@ -68,7 +68,11 @@ MCB (Most Common Blunder) is a powerful chess analysis tool that helps players i
 
 **Ready to discover your chess blunders?**
 
-[![Launch MCB](https://img.shields.io/badge/🎯_Launch_MCB-Live_App-blue?style=for-the-badge&logoColor=white)](mcb.ryo-nd.com)
+[![Launch MCB](https://img.shields.io/badge/🎯_Launch_MCB-Live_App-blue?style=for-the-badge&logoColor=white)]([mcb.ryo-nd.com](https://mcb.ryo-nd.com))
+
+[![Website](https://img.shields.io/badge/Website-Live-brightgreen.svg)](https://mcb.ryo-nd.com)
+
+
 
 _Just enter your Chess.com username and start analyzing!_
 
