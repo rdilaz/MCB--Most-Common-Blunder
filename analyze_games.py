@@ -10,7 +10,8 @@ from config import (ENABLE_BATCH_ENGINE_ANALYSIS, BATCH_ANALYSIS_SIZE,
                     SKIP_FORCED_MOVES, SKIP_BOOK_MOVES, SKIP_OBVIOUS_RECAPTURES, 
                     SKIP_TABLEBASE_POSITIONS, TABLEBASE_PIECE_LIMIT,
                     MIN_EVAL_DROP_FOR_ANALYSIS, EXPENSIVE_CHECK_THRESHOLD,
-                    BLUNDER_CATEGORY_PRIORITY, PIECE_VALUES, PIECE_NAMES)
+                    BLUNDER_CATEGORY_PRIORITY, PIECE_VALUES, PIECE_NAMES,
+                    BLUNDER_THRESHOLD)
 
 # ---- Opening Book (Placeholder for Optimization) ----
 # To enable, download a polyglot book (e.g., gm2001.bin) and place it in the project root.
@@ -58,15 +59,11 @@ def is_book_move(board: chess.Board, move: chess.Move) -> bool:
     return move_uci in HARDCODED_OPENING_BOOK.get(move_num, [])
 
 # ---- Constants ----
-STOCKFISH_PATH_DEFAULT = os.path.join(os.path.dirname(__file__), "stockfish", "stockfish.exe")
-BLUNDER_THRESHOLD_DEFAULT = 20.0
 ENGINE_THINK_TIME_DEFAULT = 0.08
-TRAP_DETECTION_DEPTH = 3
 
 # Thresholds
 INACCURACY_THRESHOLD = 8.0
 MISTAKE_THRESHOLD = 15.0
-BLUNDER_THRESHOLD = 25.0
 CRITICAL_THRESHOLD = 50.0
 
 OPENING_INACCURACY = 10.0

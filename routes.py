@@ -8,7 +8,7 @@ import logging
 import time
 import signal
 from threading import Thread
-from flask import Flask, jsonify, send_from_directory, Response, request
+from flask import Flask, jsonify, Response, request
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
