@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useMCB } from '../../context/MCBContext';
 import { useAnalysis } from '../../hooks/useAnalysis';
 import Slider from '../ui/Slider';
+import Dropdown from '../ui/Dropdown';
 import DeveloperMode from './DeveloperMode';
 import SettingsSummary from '../ui/SettingsSummary';
 
@@ -9,11 +10,6 @@ const AnalysisForm = () => {
   const { settings, updateSettings, validateSettings } = useMCB();
   const { isAnalyzing, startAnalysis } = useAnalysis();
   const [isSettingsExpanded, setIsSettingsExpanded] = useState(false);
-  const [openDropdowns, setOpenDropdowns] = useState({
-    ratingFilter: false,
-    gameResult: false,
-    analysisDepth: false
-  });
   const [activeSetting, setActiveSetting] = useState(null);
 
   const usernameRef = useRef(null);
@@ -83,22 +79,6 @@ const AnalysisForm = () => {
 
   const toggleSettings = () => {
     setIsSettingsExpanded(!isSettingsExpanded);
-  };
-
-  const handleDropdownClick = (dropdownId) => {
-    setOpenDropdowns(prev => ({
-      ...prev,
-      [dropdownId]: !prev[dropdownId]
-    }));
-  };
-
-  const handleDropdownBlur = (dropdownId) => {
-    setTimeout(() => {
-      setOpenDropdowns(prev => ({
-        ...prev,
-        [dropdownId]: false
-      }));
-    }, 150);
   };
 
   const validation = validateSettings();
@@ -176,38 +156,28 @@ const AnalysisForm = () => {
 
               <div className={`setting-group ${activeSetting === 'ratingFilter' ? 'active' : ''}`} ref={ratingFilterRef}>
                 <label htmlFor="ratingFilter">Rating Filter</label>
-                <div className="custom-dropdown">
-                  <select 
-                    id="ratingFilter"
-                    value={settings.ratingFilter}
-                    onChange={(e) => handleInputChange('ratingFilter', e.target.value)}
-                    onMouseDown={() => handleDropdownClick('ratingFilter')}
-                    onBlur={() => handleDropdownBlur('ratingFilter')}
-                  >
-                    <option value="all">All Games</option>
-                    <option value="rated">Rated Games Only</option>
-                    <option value="unrated">Unrated Games Only</option>
-                  </select>
-                  <span className={`dropdown-triangle ${openDropdowns.ratingFilter ? 'rotated' : ''}`}>▼</span>
-                </div>
+                <Dropdown 
+                  id="ratingFilter"
+                  value={settings.ratingFilter}
+                  onChange={(e) => handleInputChange('ratingFilter', e.target.value)}
+                >
+                  <option value="all">All Games</option>
+                  <option value="rated">Rated Games Only</option>
+                  <option value="unrated">Unrated Games Only</option>
+                </Dropdown>
               </div>
 
               <div className={`setting-group ${activeSetting === 'gameResult' ? 'active' : ''}`} ref={gameResultRef}>
                 <label htmlFor="gameResult">Game Results</label>
-                <div className="custom-dropdown">
-                  <select 
-                    id="gameResult"
-                    value={settings.gameResult}
-                    onChange={(e) => handleInputChange('gameResult', e.target.value)}
-                    onMouseDown={() => handleDropdownClick('gameResult')}
-                    onBlur={() => handleDropdownBlur('gameResult')}
-                  >
-                    <option value="all">All Games</option>
-                    <option value="wins">Wins Only</option>
-                    <option value="losses">Losses Only</option>
-                  </select>
-                  <span className={`dropdown-triangle ${openDropdowns.gameResult ? 'rotated' : ''}`}>▼</span>
-                </div>
+                <Dropdown 
+                  id="gameResult"
+                  value={settings.gameResult}
+                  onChange={(e) => handleInputChange('gameResult', e.target.value)}
+                >
+                  <option value="all">All Games</option>
+                  <option value="wins">Wins Only</option>
+                  <option value="losses">Losses Only</option>
+                </Dropdown>
                 <small>Filter by game outcome</small>
               </div>
 
@@ -227,20 +197,15 @@ const AnalysisForm = () => {
 
               <div className={`setting-group ${activeSetting === 'analysisDepth' ? 'active' : ''}`} ref={analysisDepthRef}>
                 <label htmlFor="analysisDepth">Analysis Depth</label>
-                <div className="custom-dropdown">
-                  <select 
-                    id="analysisDepth"
-                    value={settings.analysisDepth}
-                    onChange={(e) => handleInputChange('analysisDepth', e.target.value)}
-                    onMouseDown={() => handleDropdownClick('analysisDepth')}
-                    onBlur={() => handleDropdownBlur('analysisDepth')}
-                  >
-                    <option value="fast">Fast (0.08s per move)</option>
-                    <option value="balanced">Balanced (0.15s per move)</option>
-                    <option value="deep">Deep (0.3s per move)</option>
-                  </select>
-                  <span className={`dropdown-triangle ${openDropdowns.analysisDepth ? 'rotated' : ''}`}>▼</span>
-                </div>
+                <Dropdown 
+                  id="analysisDepth"
+                  value={settings.analysisDepth}
+                  onChange={(e) => handleInputChange('analysisDepth', e.target.value)}
+                >
+                  <option value="fast">Fast (0.08s per move)</option>
+                  <option value="balanced">Balanced (0.15s per move)</option>
+                  <option value="deep">Deep (0.3s per move)</option>
+                </Dropdown>
                 <small>Higher depth = more accurate but slower</small>
               </div>
             </div>

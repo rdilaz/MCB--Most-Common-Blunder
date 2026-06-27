@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { formatBlunderDescription, formatWinProbDrop, getGameTypeIcon, formatGameType } from '../../utils/templateHelpers';
+import { formatWinProbDrop, getGameTypeIcon, formatGameType } from '../../utils/templateHelpers';
+import BaseBlunder from './BaseBlunder';
 
 const BlunderItem = ({ blunder, index }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -75,38 +76,32 @@ const BlunderOccurrence = ({ occurrence }) => {
   const gameTypeIcon = getGameTypeIcon(timeClass);
 
   return (
-    <div className="blunder-occurrence">
-      <div className="blunder-occurrence-header">
-        <div className="occurrence-move">
-          🎯 Move {occurrence.move_number || 'Unknown'} {formatWinProbDrop(occurrence.win_prob_drop) && (
-            <span className="win-prob-drop">{formatWinProbDrop(occurrence.win_prob_drop)}</span>
-          )}
-        </div>
-        <div className="occurrence-game-info">
-          Game #{gameNumber}: {whitePlayer === targetPlayer ? <strong>{whiteDisplay}</strong> : whiteDisplay} vs {blackPlayer === targetPlayer ? <strong>{blackDisplay}</strong> : blackDisplay}
-        </div>
-        <div className="occurrence-game-meta">
-          <span className="game-meta-item">📅 {gameDate} • {gameTypeIcon} {formatGameType(timeClass)} • {isRated}</span>
-        </div>
-      </div>
-      <div className="blunder-occurrence-description">
-        {formatBlunderDescription(occurrence.description)}
-      </div>
-      {occurrence.best_move && (
-        <div className="occurrence-best-move">
-          💡 <strong>Best move was:</strong> {occurrence.best_move}
-        </div>
-      )}
-      {gameUrl ? (
-        <div className="occurrence-game-link">
-          <a href={gameUrl} target="_blank" rel="noopener noreferrer" className="game-link-small">
-            🔗 View this game on Chess.com
-          </a>
-        </div>
-      ) : (
-        <div className="occurrence-game-link-disabled">⚠️ Game link not available</div>
-      )}
-    </div>
+    <BaseBlunder
+      blunder={occurrence}
+      containerClass="blunder-occurrence"
+      winProbDrop={formatWinProbDrop(occurrence.win_prob_drop)}
+      headerDetails={
+        <>
+          <div className="occurrence-game-info">
+            Game #{gameNumber}: {whitePlayer === targetPlayer ? <strong>{whiteDisplay}</strong> : whiteDisplay} vs {blackPlayer === targetPlayer ? <strong>{blackDisplay}</strong> : blackDisplay}
+          </div>
+          <div className="occurrence-game-meta">
+            <span className="game-meta-item">📅 {gameDate} • {gameTypeIcon} {formatGameType(timeClass)} • {isRated}</span>
+          </div>
+        </>
+      }
+      footerDetails={
+        gameUrl ? (
+          <div className="occurrence-game-link">
+            <a href={gameUrl} target="_blank" rel="noopener noreferrer" className="game-link-small">
+              🔗 View this game on Chess.com
+            </a>
+          </div>
+        ) : (
+          <div className="occurrence-game-link-disabled">⚠️ Game link not available</div>
+        )
+      }
+    />
   );
 };
 

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { getGameTypeIcon, formatGameType, formatBlunderDescription } from '../../utils/templateHelpers';
+import { getGameTypeIcon, formatGameType } from '../../utils/templateHelpers';
 import { useMCB } from '../../context/MCBContext';
+import BaseBlunder from '../ui/BaseBlunder';
 
 const GameBlunderItem = ({ game }) => {
   const [isExpanded, setIsExpanded] = useState(false);
@@ -88,24 +89,12 @@ const GameBlunders = ({ gameNumber, blunders }) => {
 
 const IndividualBlunder = ({ blunder }) => {
   return (
-    <div className="individual-blunder">
-      <div className="blunder-header">
-        <div className="blunder-move">
-          🎯 Move {blunder.move_number || 'Unknown'}: {blunder.category || 'Unknown'}
-          {blunder.win_prob_drop && (
-            <span className="win-prob-drop"> -{blunder.win_prob_drop.toFixed(1)}% ↓</span>
-          )}
-        </div>
-      </div>
-      <div className="blunder-description">
-        {formatBlunderDescription(blunder.description)}
-      </div>
-      {blunder.best_move && (
-        <div className="blunder-best-move">
-          💡 <strong>Best move was:</strong> {blunder.best_move}
-        </div>
-      )}
-    </div>
+    <BaseBlunder 
+      blunder={blunder}
+      moveText={`🎯 Move ${blunder.move_number || 'Unknown'}: ${blunder.category || 'Unknown'}`}
+      winProbDrop={blunder.win_prob_drop ? ` -${blunder.win_prob_drop.toFixed(1)}% ↓` : null}
+      containerClass="individual-blunder"
+    />
   );
 };
 

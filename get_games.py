@@ -1,89 +1,11 @@
-import requests
 import json
 import time  # Add time import for performance tracking
 from urllib.parse import quote
 import asyncio
 import httpx
+import tempfile
+import os
 from typing import List, Tuple, Optional
-
-def fetch_user_games(username, num_games, selected_types, rated_filter):
-    """
-    Fetches a user's games from Chess.com API based on multiple criteria.
-    Args:
-        username (str): The username of the player to fetch games for.
-        num_games (int): The number of games to fetch.
-        selected_types (list): A list of game types to fetch.
-        rated_filter (str): The filter to apply to the games.
-    Returns:
-        tuple: (pgn_filename, games_metadata) where games_metadata is a list of game info dicts
-    """
-    fetch_start = time.time()
-    
-    # Sanitize username for URL safety
-    safe_username = quote(username, safe='')
-    main_url = f"https://api.chess.com/pub/player/{safe_username}/games/archives"
-    headers = {"User-Agent": "MCB/1.0"}
-
-    # Improved print statement for clarity
-    type_str = ", ".join(selected_types) if selected_types else "all"
-    print(f"Config: Fetching last {num_games} games for '{username}' | Types: '{type_str}' | Filter: '{rated_filter}'")
-
-    try:
-        # Step 1: Get archives list
-        archives_start = time.time()
-        print(f"   [INFO] Fetching archives list...")
-        response = requests.get(main_url, headers=headers)
-        response.raise_for_status()
-        archives_data = response.json()
-        archive_urls = archives_data.get("archives", [])
-        archives_time = time.time() - archives_start
-        print(f"   [SUCCESS] Found {len(archive_urls)} monthly archives in {archives_time:.3f} seconds")
-
-        pgns = []
-        games_metadata = []
-        archives_processed = 0
-        
-        # Step 2: Process each archive (starting from most recent)
-        games_start = time.time()
-        for archive_url in reversed(archive_urls):
-            if len(pgns) >= num_games:
-                break
-
-            archives_processed += 1
-            month_start = time.time()
-            print(f"   [ARCHIVE] Processing archive {archives_processed}/{len(archive_urls)}...")
-            
-            monthly_response = requests.get(archive_url, headers=headers)
-            monthly_response.raise_for_status()
-            monthly_games_data = monthly_response.json()
-            games_in_month = monthly_games_data.get("games", [])
-            
-            month_time = time.time() - month_start
-            print(f"   [SUCCESS] Retrieved {len(games_in_month)} games from archive in {month_time:.3f} seconds")
-
-            games_added_this_month = 0
-            for game_data in reversed(games_in_month):
-                if len(pgns) >= num_games:
-                    break
-
-                pgn, metadata = process_game_data(game_data, username, selected_types, rated_filter)
-                if pgn and metadata:
-                    pgns.append(pgn)
-                    games_metadata.append(metadata)
-                    games_added_this_month += 1
-            
-            print(f"   [STATS] Added {games_added_this_month} games after filtering (Total: {len(pgns)}/{num_games})")
-
-        games_time = time.time() - games_start
-        print(f"[SUCCESS] Game collection completed in {games_time:.2f} seconds")
-        print(f"Successfully fetched {len(pgns)} games.")
-
-        return save_games_data(username, pgns, games_metadata, selected_types, rated_filter, fetch_start)
-    
-    except requests.exceptions.RequestException as e:
-        print(f"API error occurred: {e}")
-        return None, []
-
 
 async def fetch_user_games_async(username: str, num_games: int, selected_types: List[str], rated_filter: str) -> Tuple[Optional[str], List[dict]]:
     """
@@ -255,11 +177,7 @@ def save_games_data(username: str, pgns: List[str], games_metadata: List[dict], 
     type_for_filename = type_str.replace(", ", "-") if selected_types else "all"
     base_filename = f"{username}_last_{len(pgns)}_{type_for_filename}_{rated_filter}.pgn"
     
-    try:
-        from utils import safe_file_operations
-        file_name = safe_file_operations(base_filename)
-    except ImportError:
-        file_name = base_filename
+    file_name = os.path.join(tempfile.gettempdir(), base_filename)
     
     print(f"   [FILE] Writing PGN file '{file_name}'...")
     with open(file_name, "w", encoding="utf-8") as f:
@@ -279,7 +197,7 @@ def save_games_data(username: str, pgns: List[str], games_metadata: List[dict], 
     return file_name, games_metadata
 
 
-def fetch_user_games_with_async(username: str, num_games: int, selected_types: List[str], rated_filter: str) -> Tuple[Optional[str], List[dict]]:
+def fetch_user_games(username: str, num_games: int, selected_types: List[str], rated_filter: str) -> Tuple[Optional[str], List[dict]]:
     """
     Synchronous wrapper for async function - provides backwards compatibility.
     
