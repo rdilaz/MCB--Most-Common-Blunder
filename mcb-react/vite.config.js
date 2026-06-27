@@ -8,7 +8,7 @@ export default defineConfig({
     proxy: {
       // Proxy API requests to Flask backend
       '/api': {
-        target: 'http://127.0.0.1:5000',
+        target: 'https://mcb--most-common-blunder-600947832475.europe-west1.run.app',
         changeOrigin: true,
         secure: false,
       }
