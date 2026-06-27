@@ -68,7 +68,7 @@ CORS_CONFIG = {
 }
 
 # HTTPS Configuration
-HTTPS_ENFORCEMENT = os.environ.get('FLASK_ENV') == 'production'
+HTTPS_ENFORCEMENT = os.environ.get('HTTPS_ENFORCEMENT', 'False').lower() == 'true'
 
 # Timeout Configuration
 ANALYSIS_TIMEOUT = 300  # 5 minute timeout

@@ -444,7 +444,7 @@ def create_app() -> Flask:
     
     # HTTPS enforcement (disable for local development)
     if HTTPS_ENFORCEMENT:
-        Talisman(app, force_https=True)
+        Talisman(app, force_https=False)
     
     # Rate limiting
     app.limiter = Limiter(
