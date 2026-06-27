@@ -425,6 +425,10 @@ def register_routes(app: Flask):
             'message': 'Too many requests, please try again later'
         }), 429
 
+    @app.route('/')
+    def index():
+        return {"status": "MCB Backend is running!"}, 200
+
 
 # ========================================
 # APPLICATION FACTORY WITH PRODUCTION FEATURES
@@ -444,7 +448,7 @@ def create_app() -> Flask:
     
     # HTTPS enforcement (disable for local development)
     if HTTPS_ENFORCEMENT:
-        Talisman(app, force_https=True)
+        Talisman(app, force_https=False)
     
     # Rate limiting
     app.limiter = Limiter(
@@ -492,6 +496,8 @@ def run_app():
         threaded=True,
         use_reloader=DEBUG_MODE
     )
+
+
 
 
 if __name__ == '__main__':
