@@ -99,6 +99,7 @@ MCB uses a modular architecture designed for performance and scalability:
 
 ## DEV NOTE
 Currently, we are working on making MCB's analysis faster. As it stands, a "fast" analysis may take 1-2 minutes. Please be patient as we work on making the application more efficient. Thank you!
+
 ---
 
 <div align="center">
