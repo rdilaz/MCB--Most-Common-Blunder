@@ -7,8 +7,9 @@ import json
 import logging
 import time
 import signal
+import os
 from threading import Thread
-from flask import Flask, jsonify, Response, request
+from flask import Flask, jsonify, Response, request, send_from_directory
 from flask_cors import CORS
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -425,9 +426,13 @@ def register_routes(app: Flask):
             'message': 'Too many requests, please try again later'
         }), 429
 
-    @app.route('/')
-    def index():
-        return {"status": "MCB Backend is running!"}, 200
+    @app.route('/', defaults={'path': ''})
+    @app.route('/<path:path>')
+    def serve(path):
+        if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
+            return send_from_directory(app.static_folder, path)
+        else:
+            return send_from_directory(app.static_folder, 'index.html')
 
 
 # ========================================
@@ -441,7 +446,7 @@ def create_app() -> Flask:
     Returns:
         Flask: Configured Flask application
     """
-    app = Flask(__name__)
+    app = Flask(__name__, static_folder='static', static_url_path='/')
     
     # Security Configuration
     app.config.update(SECURITY_CONFIG)
