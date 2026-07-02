@@ -31,6 +31,13 @@ class StockfishPool:
                     # Create a new engine
                     try:
                         engine = chess.engine.SimpleEngine.popen_uci(self.stockfish_path)
+                        try:
+                            # A larger transposition table lets consecutive
+                            # analyse() calls in the same game reuse search work.
+                            from config import ENGINE_HASH_MB
+                            engine.configure({"Hash": ENGINE_HASH_MB, "Threads": 1})
+                        except Exception as e:
+                            logger.warning(f"Could not configure engine options: {e}")
                         self.total_engines += 1
                         logger.info(f"Created Stockfish engine {self.total_engines}/{self.pool_size}")
                         return engine
