@@ -38,11 +38,16 @@ GAMES_TO_FETCH = 1
 MAX_GAMES_ALLOWED = 100  # Hard cap to prevent server overload
 DAILY_GAME_LIMIT = 200   # Games per user per day
 
-# Analysis Depth Mapping (Balanced speed vs accuracy)
+# Analysis Depth Mapping
+# Keys into analyze_games.get_engine_limit(), which converts these legacy
+# think-time values into adaptive depth + time-cap engine limits:
+#   fast     -> depth 10, capped at 150ms
+#   balanced -> depth 12, capped at 250ms
+#   deep     -> depth 15, capped at 500ms
 ANALYSIS_DEPTH_MAPPING = {
-    'fast': 0.05,     # FAST: 80ms per move (was 100ms)
-    'balanced': 0.08, # BALANCED: 150ms per move (was 200ms)  
-    'deep': 0.12       # DEEP: 300ms per move (was 500ms)
+    'fast': 0.05,
+    'balanced': 0.08,
+    'deep': 0.12
 }
 
 # ========================================
@@ -255,10 +260,12 @@ OPTIMIZATION_DESCRIPTIONS = {
 
 # Parallel Processing Configuration
 PARALLEL_PROCESSING_ENABLED = True
-PARALLEL_GAME_WORKERS = 4          # Number of concurrent game analysis workers
+PARALLEL_GAME_WORKERS = 4          # Max concurrent game analysis workers (capped by CPU count at runtime)
+PARALLEL_MIN_GAMES = 4             # Use the parallel path at/above this many games (requires >1 CPU core)
 PARALLEL_MOVE_WORKERS = 2          # Number of concurrent move analysis workers per game
 ENGINE_POOL_SIZE = 6               # Increased from 2 to support parallel processing
-GAME_BATCH_SIZE = 10               # Games per batch for parallel processing
+ENGINE_HASH_MB = 32                # Stockfish transposition table size per engine (MB)
+GAME_BATCH_SIZE = 10               # Max games per batch for parallel processing
 MEMORY_STREAMING_ENABLED = False   # Disable streaming for stability - collect in memory instead
 
 # Performance Monitoring

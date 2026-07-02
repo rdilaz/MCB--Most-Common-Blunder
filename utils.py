@@ -545,11 +545,14 @@ def safe_file_removal(filepath: str) -> bool:
     
     try:
         file_path = Path(filepath)
-        temp_dir = Path(tempfile.gettempdir()) / "mcb_analysis"
-        
-        # Ensure file is within our temp directory
+        # All app-generated temp files (NamedTemporaryFile PGNs, downloaded
+        # games, metadata JSON) live directly in the system temp directory,
+        # so validate against that root to prevent path traversal.
+        temp_dir = Path(tempfile.gettempdir())
+
+        # Ensure file is within the temp directory
         file_path.resolve().relative_to(temp_dir.resolve())
-        
+
         # Check if file exists and remove it
         if file_path.exists():
             file_path.unlink()
@@ -558,7 +561,7 @@ def safe_file_removal(filepath: str) -> bool:
         else:
             logger.debug(f"File not found for removal: {filepath}")
             return False
-            
+
     except Exception as e:
         logger.error(f"Error removing file {filepath}: {e}")
         return False
@@ -578,13 +581,13 @@ def safe_file_check(filepath: str) -> bool:
     
     try:
         file_path = Path(filepath)
-        temp_dir = Path(tempfile.gettempdir()) / "mcb_analysis"
-        
-        # Ensure file is within our temp directory
+        temp_dir = Path(tempfile.gettempdir())
+
+        # Ensure file is within the temp directory
         file_path.resolve().relative_to(temp_dir.resolve())
-        
+
         return file_path.exists()
-        
+
     except Exception as e:
         logger.error(f"Error checking file {filepath}: {e}")
         return False 

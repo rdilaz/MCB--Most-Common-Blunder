@@ -9,6 +9,7 @@ import tempfile
 import time
 import logging
 import io
+import math
 from typing import Dict, List, Any, Optional, Tuple
 from collections import Counter
 from functools import lru_cache
@@ -23,7 +24,8 @@ from config import (
     ANALYSIS_DEPTH_MAPPING, BLUNDER_GENERAL_DESCRIPTIONS,
     BLUNDER_EDUCATIONAL_DESCRIPTIONS, BASE_IMPACT_VALUES,
     CATEGORY_WEIGHTS, ESTIMATED_MOVES_PER_GAME, OPTIMIZATION_DESCRIPTIONS,
-    ENGINE_POOL_SIZE, PARALLEL_GAME_WORKERS, PARALLEL_PROCESSING_ENABLED
+    ENGINE_POOL_SIZE, PARALLEL_GAME_WORKERS, PARALLEL_PROCESSING_ENABLED,
+    PARALLEL_MIN_GAMES
 )
 from engines.stockfish_pool import get_engine_pool
 from utils import (
@@ -49,6 +51,11 @@ class AnalysisService:
         """Get the global engine pool instance"""
         from engines.stockfish_pool import get_engine_pool
         return get_engine_pool()
+
+    def _get_worker_count(self) -> int:
+        """Parallel workers, capped by available CPU cores. Engine analysis is
+        CPU-bound, so more workers than cores just adds contention."""
+        return max(1, min(PARALLEL_GAME_WORKERS, os.cpu_count() or 1))
     
     def analyze_game_optimized(self, game, engine, target_user, blunder_threshold, engine_think_time, debug_mode, stockfish_path, threads):
         """
@@ -84,8 +91,11 @@ class AnalysisService:
                 # Estimate game count for processing decision
                 estimated_games = len(games_metadata) if games_metadata else self._estimate_game_count(pgn_content)
                 
-                # Use parallel processing for larger datasets
-                if PARALLEL_PROCESSING_ENABLED and estimated_games > 20:
+                # Use parallel processing whenever there are enough games and
+                # more than one CPU core (single-core parallelism only adds contention)
+                if (PARALLEL_PROCESSING_ENABLED
+                        and self._get_worker_count() > 1
+                        and estimated_games >= PARALLEL_MIN_GAMES):
                     tracker.update_progress(5, f"🚀 Using parallel processing for {estimated_games} games")
                     results = self.analyze_games_parallel(
                         pgn_filename,
@@ -366,9 +376,15 @@ class AnalysisService:
                            MEMORY_STREAMING_ENABLED, PROGRESS_UPDATE_INTERVAL)
         
         step_start = time.time()
-        
-        # Split games into batches for parallel processing
-        game_batches = self._split_pgn_into_batches(pgn_file_path, GAME_BATCH_SIZE)
+
+        # Split games into batches for parallel processing.
+        # Batches sized to ~half a worker's share keep all workers busy until
+        # the end instead of leaving stragglers (e.g. 20 games / 4 workers ->
+        # batches of 3 rather than two idle-prone batches of 10).
+        workers = self._get_worker_count()
+        games = self._read_pgn_games(pgn_file_path)
+        batch_size = max(1, min(GAME_BATCH_SIZE, math.ceil(len(games) / (workers * 2)))) if games else 1
+        game_batches = [games[i:i + batch_size] for i in range(0, len(games), batch_size)]
         
         # Start performance monitoring
         estimated_games = sum(len(batch) for batch in game_batches)
@@ -395,7 +411,7 @@ class AnalysisService:
             games_analyzed = 0
             
             # Process batches in parallel
-            with ThreadPoolExecutor(max_workers=PARALLEL_GAME_WORKERS) as executor:
+            with ThreadPoolExecutor(max_workers=workers) as executor:
                 # Submit all batch jobs with starting game indices
                 future_to_batch = {}
                 games_processed_so_far = 0
@@ -492,13 +508,11 @@ class AnalysisService:
                 except:
                     pass
 
-    def _split_pgn_into_batches(self, pgn_file_path: str, batch_size: int) -> List[List[str]]:
-        """Split PGN file into batches of games for parallel processing"""
-        import io
-        
+    def _read_pgn_games(self, pgn_file_path: str) -> List[str]:
+        """Read a PGN file and return each game as its own PGN string."""
         games = []
         current_game = []
-        
+
         with open(pgn_file_path, 'r', encoding='utf-8') as f:
             for line in f:
                 line = line.strip()
@@ -508,18 +522,12 @@ class AnalysisService:
                     current_game = [line]
                 else:
                     current_game.append(line)
-            
+
             # Add last game
             if current_game:
                 games.append('\n'.join(current_game))
-        
-        # Split into batches
-        batches = []
-        for i in range(0, len(games), batch_size):
-            batch = games[i:i + batch_size]
-            batches.append(batch)
-        
-        return batches
+
+        return games
 
     def _analyze_game_batch(self, game_batch: List[str], username: str, 
                            blunder_threshold: float, engine_think_time: float,
@@ -559,7 +567,7 @@ class AnalysisService:
                         engine_think_time=engine_think_time,
                         debug_mode=False,
                         stockfish_path=self.stockfish_path,
-                        threads=PARALLEL_GAME_WORKERS
+                        threads=1
                     )
                     
                     # Add metadata with proper game indexing
