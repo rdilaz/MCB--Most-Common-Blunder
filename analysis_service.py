@@ -53,9 +53,14 @@ class AnalysisService:
         return get_engine_pool()
 
     def _get_worker_count(self) -> int:
-        """Parallel workers, capped by available CPU cores. Engine analysis is
-        CPU-bound, so more workers than cores just adds contention."""
-        return max(1, min(PARALLEL_GAME_WORKERS, os.cpu_count() or 1))
+        """Number of parallel analysis workers.
+
+        Driven entirely by config (MCB_ANALYSIS_WORKERS), NOT os.cpu_count():
+        containerized runtimes like Cloud Run routinely report the host's core
+        count rather than the vCPUs actually allocated, so auto-detection would
+        happily spawn 4 engines on a 1-vCPU instance and stall. Defaults to 1
+        (sequential), which is safe everywhere."""
+        return max(1, PARALLEL_GAME_WORKERS)
     
     def analyze_game_optimized(self, game, engine, target_user, blunder_threshold, engine_think_time, debug_mode, stockfish_path, threads):
         """

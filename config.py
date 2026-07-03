@@ -259,12 +259,24 @@ OPTIMIZATION_DESCRIPTIONS = {
 }
 
 # Parallel Processing Configuration
+#
+# IMPORTANT: parallelism is OPT-IN and defaults to sequential (1 worker).
+# Each worker runs its own Stockfish process; running more workers than the
+# instance has vCPUs makes the engines fight over one core and can stall a
+# request until timeouts fire (the classic "hangs on Cloud Run" failure).
+# Container CPU counts are unreliable (os.cpu_count() often reports host cores),
+# so we do NOT auto-detect. Instead, set MCB_ANALYSIS_WORKERS to match the
+# vCPUs you actually allocate:
+#   - 1 vCPU Cloud Run instance (default)      -> leave at 1  (sequential)
+#   - bump the service to N vCPUs              -> set MCB_ANALYSIS_WORKERS=N
 PARALLEL_PROCESSING_ENABLED = True
-PARALLEL_GAME_WORKERS = 4          # Max concurrent game analysis workers (capped by CPU count at runtime)
-PARALLEL_MIN_GAMES = 4             # Use the parallel path at/above this many games (requires >1 CPU core)
+PARALLEL_GAME_WORKERS = max(1, int(os.environ.get('MCB_ANALYSIS_WORKERS', '1')))
+PARALLEL_MIN_GAMES = 4             # Use the parallel path at/above this many games (only when workers > 1)
 PARALLEL_MOVE_WORKERS = 2          # Number of concurrent move analysis workers per game
-ENGINE_POOL_SIZE = 6               # Increased from 2 to support parallel processing
-ENGINE_HASH_MB = 32                # Stockfish transposition table size per engine (MB)
+# Pool holds one engine per worker (min 2 so the single-worker path can still
+# reuse a warmed engine across requests).
+ENGINE_POOL_SIZE = max(2, PARALLEL_GAME_WORKERS)
+ENGINE_HASH_MB = int(os.environ.get('MCB_ENGINE_HASH_MB', '32'))  # Stockfish TT size per engine (MB)
 GAME_BATCH_SIZE = 10               # Max games per batch for parallel processing
 MEMORY_STREAMING_ENABLED = False   # Disable streaming for stability - collect in memory instead
 
