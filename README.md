@@ -27,7 +27,7 @@ MCB (Most Common Blunder) is a chess analysis tool that helps players identify t
 
 - **Chess.com Integration**: Automatically fetch and analyze games from your Chess.com profile
 - **Stockfish Engine**: Every move the player makes is checked by Stockfish
-- **Batch Analysis**: Analyze up to 100 of your most recent games per run (200 games per player per day)
+- **Choose How Many Games**: Pick how many recent games to analyze, up to 100 per run (200 games per player per day)
 
 ### **Detailed Blunder Breakdown**
 
