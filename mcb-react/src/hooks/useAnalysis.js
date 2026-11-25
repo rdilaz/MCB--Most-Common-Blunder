@@ -167,7 +167,7 @@ export const useAnalysis = () => {
     updateUI(prevState => ({
       ...prevState,
       progressLogs: [...(prevState.progressLogs || []), {
-        message: '✅ Analysis completed!',
+        message: 'Analysis completed!',
         timestamp: new Date().toLocaleTimeString(),
         rawTimestamp: Date.now()
       }]
@@ -204,7 +204,7 @@ export const useAnalysis = () => {
     updateUI(prevState => ({
       ...prevState,
       progressLogs: [...(prevState.progressLogs || []), {
-        message: `❌ Error: ${errorMessage}`,
+        message: `Error: ${errorMessage}`,
         timestamp: new Date().toLocaleTimeString()
       }]
     }));

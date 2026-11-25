@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { getGameTypeIcon, formatGameType } from '../../utils/templateHelpers';
+import { formatGameType } from '../../utils/templateHelpers';
 import { useMCB } from '../../context/MCBContext';
 import BaseBlunder from '../ui/BaseBlunder';
 
@@ -11,8 +11,7 @@ const GameBlunderItem = ({ game }) => {
   };
 
   const targetPlayer = game.target_player;
-  const gameTypeIcon = getGameTypeIcon(game.time_class);
-  const ratingBadge = game.rated ? '🏆 Rated' : '🎮 Unrated';
+  const ratingBadge = game.rated ? 'Rated' : 'Unrated';
   const blunderCount = game.blunders ? game.blunders.length : 0;
 
   return (
@@ -28,7 +27,7 @@ const GameBlunderItem = ({ game }) => {
           </div>
           <div className="game-details">
             <span className="game-meta">
-              📅 {game.date} • {gameTypeIcon} {formatGameType(game.time_class)} • {ratingBadge}
+              {game.date} • {formatGameType(game.time_class)} • {ratingBadge}
             </span>
           </div>
         </div>
@@ -38,7 +37,7 @@ const GameBlunderItem = ({ game }) => {
           </div>
           {game.url ? (
             <a href={game.url} target="_blank" rel="noopener noreferrer" className="game-link-small">
-              🔗 View
+              View
             </a>
           ) : (
             <span className="game-link-disabled">No link</span>
@@ -91,7 +90,7 @@ const IndividualBlunder = ({ blunder }) => {
   return (
     <BaseBlunder 
       blunder={blunder}
-      moveText={`🎯 Move ${blunder.move_number || 'Unknown'}: ${blunder.category || 'Unknown'}`}
+      moveText={`Move ${blunder.move_number || 'Unknown'}: ${blunder.category || 'Unknown'}`}
       winProbDrop={blunder.win_prob_drop ? ` -${blunder.win_prob_drop.toFixed(1)}% ↓` : null}
       containerClass="individual-blunder"
     />

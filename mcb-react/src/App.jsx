@@ -54,8 +54,8 @@ const AppContent = () => {
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
 
     // Console startup messages (was missing!)
-    console.log('🎯 MCB Application Starting (React)');
-    console.log('✅ MCB Application Ready');
+    console.log('MCB Application Starting (React)');
+    console.log('MCB Application Ready');
 
     return () => {
       window.removeEventListener('error', handleError);
@@ -103,7 +103,7 @@ const AppContent = () => {
         <p>
           &copy; {new Date().getFullYear()} Ryo N-D
           {' · '}
-          <a className="footer-link" href="https://ryo.is">ryo.is</a>
+          <a className="footer-link" href="https://ryo-nd.com">ryo-nd.com</a>
           {' · '}
           <a className="footer-link" href="https://github.com/rdilaz/MCB--Most-Common-Blunder">Source on GitHub</a>
         </p>

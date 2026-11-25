@@ -7,7 +7,7 @@ const GamesSection = ({ games }) => {
     return (
       <div className="games-by-blunders">
         <div className="games-by-blunders-header">
-          <h4>🎯 Games</h4>
+          <h4>Games</h4>
         </div>
         <div className="no-games-with-blunders">No games with blunders found</div>
       </div>
@@ -16,7 +16,7 @@ const GamesSection = ({ games }) => {
 
   return (
     <CollapsibleSection
-      title={<h4>🎯 Games</h4>}
+      title={<h4>Games</h4>}
       containerClassName="games-by-blunders"
       headerClassName="games-by-blunders-header"
       contentClassName="games-by-blunders-content"

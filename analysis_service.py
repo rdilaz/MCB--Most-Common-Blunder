@@ -101,7 +101,7 @@ class AnalysisService:
                 if (PARALLEL_PROCESSING_ENABLED
                         and self._get_worker_count() > 1
                         and estimated_games >= PARALLEL_MIN_GAMES):
-                    tracker.update_progress(5, f"🚀 Using parallel processing for {estimated_games} games")
+                    tracker.update_progress(5, f"Using parallel processing for {estimated_games} games")
                     results = self.analyze_games_parallel(
                         pgn_filename,
                         username,
@@ -112,7 +112,7 @@ class AnalysisService:
                         games_metadata
                     )
                 else:
-                    tracker.update_progress(5, f"📖 Using sequential processing for {estimated_games} games")
+                    tracker.update_progress(5, f"Using sequential processing for {estimated_games} games")
                     results = self.analyze_multiple_games_enhanced(
                         pgn_filename,
                         username,
@@ -179,18 +179,18 @@ class AnalysisService:
         try:
             with Timer("Engine acquisition", logger):
                 if progress_tracker:
-                    progress_tracker.update_progress(35, "🔧 Getting Stockfish engine from pool...")
+                    progress_tracker.update_progress(35, "Getting Stockfish engine from pool...")
                 
                 engine = self._get_engine_pool().get_engine()
                 if not engine:
                     raise RuntimeError("No Stockfish engines available")
                 
                 if progress_tracker:
-                    progress_tracker.update_progress(40, f"✅ Engine acquired from pool")
+                    progress_tracker.update_progress(40, f"Engine acquired from pool")
                     
         except Exception as e:
             if progress_tracker:
-                progress_tracker.set_error(f"❌ Engine acquisition failed: {str(e)}")
+                progress_tracker.set_error(f"Engine acquisition failed: {str(e)}")
             return {"error": f"Could not get Stockfish engine: {str(e)}"}
 
         # Process games and collect blunders
@@ -202,7 +202,7 @@ class AnalysisService:
             with Timer(f"Single-pass PGN analysis", logger):
                 with open(pgn_file_path, 'r', encoding='utf-8') as f:
                     if progress_tracker:
-                        progress_tracker.update_progress(45, f"📖 Starting single-pass PGN analysis...")
+                        progress_tracker.update_progress(45, f"Starting single-pass PGN analysis...")
                     
                     while True:
                         game = chess.pgn.read_game(f)
@@ -223,7 +223,7 @@ class AnalysisService:
                         if progress_tracker:
                             progress_tracker.update_progress(
                                 game_progress, 
-                                f"🎯 Analyzing game #{games_analyzed}: {white_player} vs {black_player}"
+                                f"Analyzing game #{games_analyzed}: {white_player} vs {black_player}"
                             )
                         
                         # Analyze game immediately instead of storing
@@ -272,14 +272,14 @@ class AnalysisService:
                             final_game_progress = 45 + (games_analyzed / estimated_total) * 40
                             progress_tracker.update_progress(
                                 final_game_progress,
-                                f"✅ Analyzed {games_analyzed} games, found {len(game_blunders)} blunder(s) in latest game"
+                                f"Analyzed {games_analyzed} games, found {len(game_blunders)} blunder(s) in latest game"
                             )
                     
                     # Final progress update
                     if progress_tracker:
                         progress_tracker.update_progress(
                             85,
-                            f"✅ Single-pass analysis complete: {games_analyzed} games analyzed, {len(all_blunders)} blunders found"
+                            f"Single-pass analysis complete: {games_analyzed} games analyzed, {len(all_blunders)} blunders found"
                         )
                 
         except FileNotFoundError:
@@ -294,13 +294,13 @@ class AnalysisService:
 
         # Process results
         if progress_tracker:
-            progress_tracker.update_progress(90, f"📊 Processing {len(all_blunders)} blunders...")
+            progress_tracker.update_progress(90, f"Processing {len(all_blunders)} blunders...")
         
         # Create summary
         if not all_blunders:
             total_time = time.time() - step_start
             if progress_tracker:
-                progress_tracker.update_progress(100, f"✨ No blunders found! Analysis completed in {total_time:.1f}s")
+                progress_tracker.update_progress(100, f"No blunders found! Analysis completed in {total_time:.1f}s")
             
             return {
                 "success": True,
@@ -346,7 +346,7 @@ class AnalysisService:
         if progress_tracker:
             progress_tracker.update_progress(
                 95, 
-                f"🎉 Found {len(all_blunders)} blunders! Most common: {most_common_category}"
+                f"Found {len(all_blunders)} blunders! Most common: {most_common_category}"
             )
         
         # Generate performance report for sequential processing
@@ -410,7 +410,7 @@ class AnalysisService:
             
             if progress_tracker:
                 total_games = sum(len(batch) for batch in game_batches)
-                progress_tracker.update_progress(35, f"🔧 Split {total_games} games into {len(game_batches)} batches for parallel processing")
+                progress_tracker.update_progress(35, f"Split {total_games} games into {len(game_batches)} batches for parallel processing")
             
             all_blunders = []
             games_analyzed = 0
@@ -465,7 +465,7 @@ class AnalysisService:
                             progress_percent = 40 + (games_analyzed / total_games_actual) * 45
                             progress_tracker.update_progress(
                                 progress_percent,
-                                f"⚡ Parallel analysis: {games_analyzed}/{total_games_actual} games completed (batch {batch_idx + 1}/{total_batches})"
+                                f"Parallel analysis: {games_analyzed}/{total_games_actual} games completed (batch {batch_idx + 1}/{total_batches})"
                             )
                     
                     except Exception as e:
@@ -473,7 +473,7 @@ class AnalysisService:
                         if progress_tracker:
                             progress_tracker.update_progress(
                                 progress_tracker.current_progress,
-                                f"⚠️ Warning: Batch {batch_idx + 1} failed, continuing with remaining batches"
+                                f"Warning: Batch {batch_idx + 1} failed, continuing with remaining batches"
                             )
                         continue
             
@@ -485,7 +485,7 @@ class AnalysisService:
             if progress_tracker:
                 progress_tracker.update_progress(
                     90,
-                    f"🎉 Parallel analysis complete: {games_analyzed} games, {len(all_blunders)} blunders in {total_time:.1f}s"
+                    f"Parallel analysis complete: {games_analyzed} games, {len(all_blunders)} blunders in {total_time:.1f}s"
                 )
             
             # Generate performance report
@@ -863,14 +863,14 @@ class AnalysisService:
                     tracker.set_error("No games found")
                     return None, None
                 
-                tracker.update_progress(20, f"✅ Downloaded games to {pgn_filename}")
+                tracker.update_progress(20, f"Downloaded games to {pgn_filename}")
                 
                 try:
                     # Read the PGN content
                     with open(pgn_filename, 'r', encoding='utf-8') as f:
                         pgn_content = f.read()
                     
-                    tracker.update_progress(25, "✅ Games ready for analysis")
+                    tracker.update_progress(25, "Games ready for analysis")
                     return pgn_content, games_metadata
                     
                 finally:

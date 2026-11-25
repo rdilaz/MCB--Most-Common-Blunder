@@ -171,7 +171,7 @@ def register_routes(app: Flask):
                         
                         try:
                             # Update progress to show transformation is starting
-                            tracker.update_progress(96, "🔄 Processing analysis results...")
+                            tracker.update_progress(96, "Processing analysis results...")
                             
                             # Use actual games analyzed count from results
                             actual_games_analyzed = results.get('games_analyzed', game_count)
@@ -189,7 +189,7 @@ def register_routes(app: Flask):
                             logger.info(f"Successfully transformed results for session {session_id}")
                             
                             # Update progress to show completion
-                            tracker.update_progress(99, "✨ Finalizing results...")
+                            tracker.update_progress(99, "Finalizing results...")
                             logger.info(f"About to call tracker.complete() for session {session_id}")
                             
                             # Complete with results

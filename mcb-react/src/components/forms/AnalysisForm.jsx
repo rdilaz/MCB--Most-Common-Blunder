@@ -105,7 +105,7 @@ const AnalysisForm = () => {
             onClick={toggleSettings}
             style={{ cursor: 'pointer' }}
           >
-            <h3>⚙️ Settings</h3>
+            <h3>Settings</h3>
             <span className="toggle-icon">{isSettingsExpanded ? '▲' : '▼'}</span>
           </div>
           <div className={`settings-content ${isSettingsExpanded ? '' : 'collapsed'}`}>
@@ -220,10 +220,10 @@ const AnalysisForm = () => {
           disabled={!validation.isValid || isAnalyzing}
         >
           <span className={`btn-text ${isAnalyzing ? 'hidden' : ''}`}>
-            🔍 Analyze My Games
+            Analyze My Games
           </span>
           <span className={`btn-loader ${isAnalyzing ? '' : 'hidden'}`}>
-            ⏳ Analyzing...
+            Analyzing...
           </span>
         </button>
       </form>

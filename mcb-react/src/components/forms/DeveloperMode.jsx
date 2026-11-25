@@ -88,7 +88,7 @@ const DeveloperMode = () => {
           className={`dev-toggle-btn ${isDeveloperMode ? 'active' : ''}`}
           onClick={toggleDeveloperMode}
         >
-          🔧 Developer Mode {isDeveloperMode ? 'ON' : 'OFF'}
+          Developer Mode {isDeveloperMode ? 'ON' : 'OFF'}
         </button>
       </div>
 
@@ -99,7 +99,7 @@ const DeveloperMode = () => {
             onClick={toggleExpanded}
             style={{ cursor: 'pointer' }}
           >
-            <h3>🧪 PGN Test Mode</h3>
+            <h3>PGN Test Mode</h3>
             <span className="toggle-icon">{isExpanded ? '▲' : '▼'}</span>
           </div>
           
@@ -165,10 +165,10 @@ const DeveloperMode = () => {
                 disabled={!pgnInput.trim() || isAnalyzing}
               >
                 <span className={`btn-text ${isAnalyzing ? 'hidden' : ''}`}>
-                  🧪 Test PGN Analysis
+                  Test PGN Analysis
                 </span>
                 <span className={`btn-loader ${isAnalyzing ? '' : 'hidden'}`}>
-                  ⏳ Analyzing...
+                  Analyzing...
                 </span>
               </button>
             </form>

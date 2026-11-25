@@ -24,11 +24,11 @@ def main():
         
         # Log startup message
         logger.info("=" * 60)
-        logger.info("🎯 MCB - Most Common Blunder Analysis (Production)")
-        logger.info("🚀 Starting application ...")
-        logger.info(f"🌐 Server will run on {'0.0.0.0' if not DEBUG_MODE else '127.0.0.1'}:{PORT}")
-        logger.info(f"🔒 Security features: {'ENABLED' if not DEBUG_MODE else 'DEVELOPMENT MODE'}")
-        logger.info(f"📊 Rate limiting: {'ENABLED' if not DEBUG_MODE else 'DEVELOPMENT MODE'}")
+        logger.info("MCB - Most Common Blunder Analysis (Production)")
+        logger.info("Starting application ...")
+        logger.info(f"Server will run on {'0.0.0.0' if not DEBUG_MODE else '127.0.0.1'}:{PORT}")
+        logger.info(f"Security features: {'ENABLED' if not DEBUG_MODE else 'DEVELOPMENT MODE'}")
+        logger.info(f"Rate limiting: {'ENABLED' if not DEBUG_MODE else 'DEVELOPMENT MODE'}")
         logger.info("=" * 60)
         
         # Production settings
