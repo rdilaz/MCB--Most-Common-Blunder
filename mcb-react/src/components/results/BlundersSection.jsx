@@ -7,16 +7,16 @@ const BlundersSection = ({ blunders }) => {
     return (
       <div className="other-blunders">
         <div className="blunders-section-header">
-          <h4>📊 Blunders</h4>
+          <h4>Blunders</h4>
         </div>
-        <div className="no-blunders">No blunders found! Great job! 🎉</div>
+        <div className="no-blunders">No blunders found! Great job! </div>
       </div>
     );
   }
 
   return (
     <CollapsibleSection
-      title={<h4>📊 Blunders</h4>}
+      title={<h4>Blunders</h4>}
       containerClassName="other-blunders"
       headerClassName="blunders-section-header"
       contentClassName="blunders-content"

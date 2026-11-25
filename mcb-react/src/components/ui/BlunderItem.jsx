@@ -1,12 +1,12 @@
 import React, { useState } from 'react';
-import { formatWinProbDrop, getGameTypeIcon, formatGameType } from '../../utils/templateHelpers';
+import { formatWinProbDrop, formatGameType } from '../../utils/templateHelpers';
 import BaseBlunder from './BaseBlunder';
 
 const BlunderItem = ({ blunder, index }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   
   const rank = index + 1;
-  const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `#${rank}`;
+  const medal = `#${rank}`;
   const occurrenceText = blunder.frequency === 1 ? 'occurrence' : 'occurrences';
 
   const toggleExpanded = () => {
@@ -65,7 +65,7 @@ const BlunderOccurrence = ({ occurrence }) => {
   const gameDate = occurrence.game_date || 'Unknown date';
   const timeClass = occurrence.game_time_class || 'unknown';
   const gameUrl = occurrence.game_url || '';
-  const isRated = occurrence.game_rated ? '🏆 Rated' : '🎮 Unrated';
+  const isRated = occurrence.game_rated ? 'Rated' : 'Unrated';
   const targetPlayer = occurrence.target_player || '';
   
   // Highlight target player in bold
@@ -73,7 +73,6 @@ const BlunderOccurrence = ({ occurrence }) => {
   const blackDisplay = blackPlayer === targetPlayer ? blackPlayer : blackPlayer;
   
   // Get game type icon
-  const gameTypeIcon = getGameTypeIcon(timeClass);
 
   return (
     <BaseBlunder
@@ -86,7 +85,7 @@ const BlunderOccurrence = ({ occurrence }) => {
             Game #{gameNumber}: {whitePlayer === targetPlayer ? <strong>{whiteDisplay}</strong> : whiteDisplay} vs {blackPlayer === targetPlayer ? <strong>{blackDisplay}</strong> : blackDisplay}
           </div>
           <div className="occurrence-game-meta">
-            <span className="game-meta-item">📅 {gameDate} • {gameTypeIcon} {formatGameType(timeClass)} • {isRated}</span>
+            <span className="game-meta-item">{gameDate} • {formatGameType(timeClass)} • {isRated}</span>
           </div>
         </>
       }
@@ -94,11 +93,11 @@ const BlunderOccurrence = ({ occurrence }) => {
         gameUrl ? (
           <div className="occurrence-game-link">
             <a href={gameUrl} target="_blank" rel="noopener noreferrer" className="game-link-small">
-              🔗 View this game on Chess.com
+              View this game on Chess.com
             </a>
           </div>
         ) : (
-          <div className="occurrence-game-link-disabled">⚠️ Game link not available</div>
+          <div className="occurrence-game-link-disabled">Game link not available</div>
         )
       }
     />

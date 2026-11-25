@@ -13,7 +13,7 @@ const BaseBlunder = ({
     <div className={containerClass}>
       <div className={`${containerClass}-header`}>
         <div className="blunder-move occurrence-move">
-          {moveText || `🎯 Move ${blunder.move_number || 'Unknown'}`}
+          {moveText || `Move ${blunder.move_number || 'Unknown'}`}
           {winProbDrop && <span className="win-prob-drop">{winProbDrop}</span>}
         </div>
         {headerDetails}
@@ -23,7 +23,7 @@ const BaseBlunder = ({
       </div>
       {blunder.best_move && (
         <div className={`${containerClass}-best-move blunder-best-move occurrence-best-move`}>
-          💡 <strong>Best move was:</strong> {blunder.best_move}
+          <strong>Best move was:</strong> {blunder.best_move}
         </div>
       )}
       {footerDetails}

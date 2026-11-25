@@ -1,12 +1,12 @@
 // Template Helper Utilities (converted from MCBTemplates)
 
 export const gameTypeIcon = {
-  'bullet': '🔥',
-  'blitz': '⚡',
-  'rapid': '🎯',
-  'classical': '🏰',
-  'daily': '📬',
-  'unknown': '🎮'
+  'bullet': '',
+  'blitz': '',
+  'rapid': '',
+  'classical': '',
+  'daily': '',
+  'unknown': ''
 };
 
 /**

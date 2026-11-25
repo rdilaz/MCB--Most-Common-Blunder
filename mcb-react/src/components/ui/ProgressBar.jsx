@@ -67,7 +67,7 @@ const ProgressBar = () => {
 
   return (
     <div className="progress-section">
-      <h3>📊 Analysis Progress</h3>
+      <h3>Analysis Progress</h3>
       <div className="progress-container">
         <div className="progress-bar-wrapper">
           <div className="progress-percentage-top">{Math.round(ui.currentProgress)}%</div>

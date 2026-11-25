@@ -155,7 +155,7 @@ class ProgressTracker:
         self._send_update({
             "step": "error",
             "status": "error",
-            "message": f"❌ {error_message}",
+            "message": f"{error_message}",
             "error": error_message,
             "time_elapsed": time.time() - self.start_time
         })

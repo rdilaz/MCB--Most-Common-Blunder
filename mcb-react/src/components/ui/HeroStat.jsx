@@ -7,7 +7,7 @@ const HeroStat = ({ heroStat }) => {
   return (
     <div className="hero-stat">
       <div className="hero-stat-header">
-        <h4>🥇 MCB: {heroStat.category}</h4>
+        <h4>MCB: {heroStat.category}</h4>
         <div className="hero-stat-score">
           <span id="heroStatScore">Severity Score: {heroStat.severity_score?.toFixed(1) || '--'}%</span>
           <div className="severity-tooltip">
@@ -36,7 +36,7 @@ const HeroStatExamples = ({ examples }) => {
   if (!examples || examples.length === 0) {
     return (
       <div className="hero-stat-example">
-        🎯 Examples will appear here with more games analyzed
+        Examples will appear here with more games analyzed
       </div>
     );
   }
@@ -45,7 +45,7 @@ const HeroStatExamples = ({ examples }) => {
     <>
       {examples.slice(0, 3).map((example, index) => (
         <div key={index} className="hero-stat-example">
-          🎯 Move {example.move_number || 'Unknown'}: {example.description || 'No description'}
+          Move {example.move_number || 'Unknown'}: {example.description || 'No description'}
         </div>
       ))}
     </>
