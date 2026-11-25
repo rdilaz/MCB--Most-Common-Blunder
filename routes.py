@@ -8,6 +8,7 @@ import logging
 import time
 import signal
 import os
+import re
 from threading import Thread
 from flask import Flask, jsonify, Response, request, send_from_directory
 from flask_cors import CORS
@@ -431,8 +432,27 @@ def register_routes(app: Flask):
     def serve(path):
         if path != "" and os.path.exists(os.path.join(app.static_folder, path)):
             return send_from_directory(app.static_folder, path)
-        else:
+        token = cloudflare_beacon_token()
+        if not token:
             return send_from_directory(app.static_folder, 'index.html')
+        # Cloudflare Web Analytics: inject the beacon only when a site token is configured.
+        with open(os.path.join(app.static_folder, 'index.html'), encoding='utf-8') as handle:
+            html = handle.read()
+        beacon = (
+            '<script defer src="https://static.cloudflareinsights.com/beacon.min.js" '
+            f'data-cf-beacon=\'{{"token": "{token}"}}\'></script>'
+        )
+        return Response(html.replace('</body>', beacon + '</body>', 1), mimetype='text/html')
+
+
+def cloudflare_beacon_token():
+    """Cloudflare Web Analytics site token from CF_WEB_ANALYTICS_TOKEN, or None.
+
+    The token is public by design (it appears in page source), but only a plain
+    hex-like value is accepted so it can never break out of the injected tag.
+    """
+    token = os.environ.get('CF_WEB_ANALYTICS_TOKEN', '').strip()
+    return token if re.fullmatch(r'[A-Za-z0-9]{16,64}', token) else None
 
 
 # ========================================
@@ -453,7 +473,12 @@ def create_app() -> Flask:
     
     # HTTPS enforcement (disable for local development)
     if HTTPS_ENFORCEMENT:
-        Talisman(app, force_https=False)
+        csp = {'default-src': "'self'", 'object-src': "'none'"}
+        if cloudflare_beacon_token():
+            # Allow only the Cloudflare Web Analytics script and its reporting endpoint.
+            csp['script-src'] = ["'self'", 'https://static.cloudflareinsights.com']
+            csp['connect-src'] = ["'self'", 'https://cloudflareinsights.com']
+        Talisman(app, force_https=False, content_security_policy=csp)
     
     # Rate limiting
     app.limiter = Limiter(

@@ -1933,6 +1933,22 @@ body::before {
     box-shadow: 0 3px 6px rgba(229, 62, 62, 0.4);
 }
 
+.footer-link {
+    color: rgba(245, 245, 245, 0.75);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+.footer-link:hover,
+.footer-link:focus-visible {
+    color: #f5f5f5;
+}
+
+.footer-link:focus-visible {
+    outline: 2px solid rgba(118, 150, 86, 0.8);
+    outline-offset: 2px;
+}
+
 /* Modern Minimal Footer */
 .footer {
     margin-top: auto;

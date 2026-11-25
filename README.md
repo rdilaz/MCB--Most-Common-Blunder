@@ -1,4 +1,4 @@
-# 🎯 MCB - Most Common Blunder
+# MCB - Most Common Blunder
 
 <div align="center">
 
@@ -13,40 +13,43 @@
 
 </div>
 
-## 🚀 What is MCB?
+<p align="center"><img src="docs/screenshot.png" alt="MCB analysis form: a Chess.com username field, settings, and a plain-language summary of the analysis to run" width="760"></p>
 
-MCB (Most Common Blunder) is a powerful chess analysis tool that helps players identify their most frequent mistakes and improve their game. By analyzing your Chess.com games with the Stockfish engine, MCB provides detailed insights into your blunders, categorizes them by type, and shows you exactly where you need to focus your training.
+Live at **[mcb.ryo-nd.com](https://mcb.ryo-nd.com)**.
 
-## ✨ Features
+## What is MCB?
 
-### 🔍 **Comprehensive Game Analysis**
+MCB (Most Common Blunder) is a chess analysis tool that helps players identify their most frequent mistakes and improve their game. By analyzing your Chess.com games with the Stockfish engine, MCB provides detailed insights into your blunders, categorizes them by type, and shows you exactly where you need to focus your training.
+
+## Features
+
+### **Comprehensive Game Analysis**
 
 - **Chess.com Integration**: Automatically fetch and analyze games from your Chess.com profile
-- **Stockfish 16 Engine**: Professional-grade analysis using the world's strongest chess engine
-- **Batch Processing**: Analyze multiple games simultaneously (up to 200 games)
+- **Stockfish Engine**: Every move the player makes is checked by Stockfish
+- **Choose How Many Games**: Pick how many recent games to analyze, up to 100 per run (200 games per player per day)
 
-### 📊 **Detailed Blunder Breakdown**
+### **Detailed Blunder Breakdown**
 
 - **Most Common Blunder**: Discover your #1 chess weakness
 - **Game-by-Game Breakdown**: See specific blunders in each analyzed game
 - **Move-by-Move Analysis**: Understand exactly where and why blunders occurred
 
-### ⚙️ **Customizable Analysis Settings**
+### **Customizable Analysis Settings**
 
 - **Game Type Filtering**: Choose between blitz, rapid, bullet, or classical games
 - **Rating Filters**: Analyze rated or unrated games
 - **Result Filtering**: Focus on wins, losses, or both
-- **Adjustable Thresholds**: Customize what constitutes a "blunder" (centipawn loss)
-- **Analysis Depth**: Choose between fast analysis or deep evaluation
+- **Adjustable Threshold**: Choose how large a drop in win probability (5 to 40 percent) counts as a blunder
+- **Analysis Depth**: Choose 0.08, 0.15 or 0.3 seconds of engine time per move
 
-### 🎮 **User-Friendly Interface**
+### **User-Friendly Interface**
 
 - **Real-time Progress**: Live updates during analysis with detailed logs
-- **Modern UI**: Clean, responsive design that works on all devices
-- **Developer Mode**: Direct PGN input for testing and custom analysis
+- **Responsive UI**: Works in desktop and mobile browsers
 - **Interactive Results**: Click through games and blunders with ease
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 **Backend:**
 
@@ -62,19 +65,19 @@ MCB (Most Common Blunder) is a powerful chess analysis tool that helps players i
 - **Context API** - State management
 - **CSS3** - Custom responsive styling
 
-## 🚀 Try It Live
+## Try It Live
 
 <div align="center">
 
 **Ready to discover your chess blunders?**
 
-[![Launch MCB](https://img.shields.io/badge/🎯_Launch_MCB-Live_App-blue?style=for-the-badge&logoColor=white)](https://mcb.ryo-nd.com)
+[![Launch MCB](https://img.shields.io/badge/Launch_MCB-Live_App-blue?style=for-the-badge&logoColor=white)](https://mcb.ryo-nd.com)
 
 _Just enter your Chess.com username and start analyzing!_
 
 </div>
 
-## 📖 How to Use
+## How to Use
 
 1. **Enter Your Chess.com Username**: Input your Chess.com username in the analysis form
 2. **Configure Settings**: Choose the number of games, game types, and analysis depth
@@ -82,28 +85,32 @@ _Just enter your Chess.com username and start analyzing!_
 4. **Review Results**: Explore your most common blunder, detailed breakdowns, and game-specific insights
 5. **Improve Your Game**: Use the insights to focus your chess training on your biggest weaknesses
 
-## 🏗️ Architecture
+## Architecture
 
-MCB uses a modular architecture designed for performance and scalability:
+MCB is a Flask API with a React front end:
 
-- **`app.py`** - Main Flask application with production-ready security
-- **`analysis_service.py`** - Core chess analysis logic with parallel processing
+- **`app.py`** / **`routes.py`** - Flask application, API routes, rate limiting and security headers
+- **`analysis_service.py`** - Core analysis logic, with optional parallel workers (off by default)
 - **`engines/stockfish_pool.py`** - Engine pool management for concurrent analysis
 - **`mcb-react/src`** - Modern React frontend with component-based architecture
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Stockfish Team** - For the incredible chess engine that powers our analysis
 - **Chess.com** - For providing the public API that enables game fetching
 - **Python-Chess Library** - For excellent chess game processing capabilities
 
+## Analytics
+
+Set `CF_WEB_ANALYTICS_TOKEN` to a Cloudflare Web Analytics site token and the server adds Cloudflare's privacy-first beacon to the page (and allows it in the Content Security Policy). Leave it unset and nothing is added.
+
 ## DEV NOTE
-Currently, we are working on making MCB's analysis faster. As it stands, a "fast" analysis may take 1-2 minutes. Please be patient as we work on making the application more efficient. Thank you!
+Currently, I am working on making MCB's analysis faster. As it stands, a "fast" analysis may take 1-2 minutes. Please be patient as I work on making the application more efficient. Thank you!
 
 ---
 
 <div align="center">
 
-**Improve your chess, one blunder at a time!** ♟️
+**Improve your chess, one blunder at a time!** 
 
 </div>
